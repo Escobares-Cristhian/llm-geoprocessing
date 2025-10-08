@@ -1,0 +1,14 @@
+# Python basics
+__pycache__/
+*.py[cod]
+.venv/
+.env
+
+# Packaging / build
+dist/
+build/
+*.egg-info/
+
+# Test cache
+.pytest_cache/
+
