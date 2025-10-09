@@ -108,6 +108,112 @@ def _quiet_ctx(enabled: bool):
     return stack
 
 
+# ---- Chat memory -----------------------------------------------------
+
+class ChatMemory:
+    """
+    Tiny, explicit chat memory.
+
+    - Store messages as [{'role','content'}, ...]
+    - Add/insert/edit/delete easily.
+    - Render history to a single human-readable string using universal role labels.
+
+    Example string:
+      User: Hi, my name is Cristhian
+      Assistant: Hi Cristhian, my name is Gemini
+      User:
+    """
+    def __init__(self, *, user_name: str = "User") -> None:
+        self.user_name = user_name
+        self._messages: List[Message] = []
+
+    # ---- basic ops ----
+    def add(self, role: str, content: str) -> None:
+        if role not in {"user", "assistant", "system"}:
+            raise LLMError("Invalid role; expected 'user', 'assistant', or 'system'.")
+        if not isinstance(content, str):
+            raise LLMError("Content must be a string.")
+        self._messages.append({"role": role, "content": content})
+
+    def add_user(self, content: str) -> None:
+        self.add("user", content)
+
+    def add_assistant(self, content: str) -> None:
+        self.add("assistant", content)
+
+    def add_system(self, content: str) -> None:
+        self.add("system", content)
+
+    def insert(self, index: int, role: str, content: str) -> None:
+        if role not in {"user", "assistant", "system"}:
+            raise LLMError("Invalid role; expected 'user', 'assistant', or 'system'.")
+        self._messages.insert(index, {"role": role, "content": content})
+
+    def edit(self, index: int, *, role: Optional[str] = None, content: Optional[str] = None) -> None:
+        m = self._messages[index]
+        if role is not None:
+            if role not in {"user", "assistant", "system"}:
+                raise LLMError("Invalid role; expected 'user', 'assistant', or 'system'.")
+            m["role"] = role
+        if content is not None:
+            if not isinstance(content, str):
+                raise LLMError("Content must be a string.")
+            m["content"] = content
+
+    def delete(self, index: int) -> None:
+        del self._messages[index]
+
+    def clear(self) -> None:
+        self._messages.clear()
+
+    # ---- accessors ----
+    def messages(self) -> List[Message]:
+        return list(self._messages)
+
+    def __len__(self) -> int:
+        return len(self._messages)
+
+    def __getitem__(self, index: int) -> Message:
+        return self._messages[index]
+
+    # ---- formatting ----
+    def as_string(
+        self,
+        model_name: Optional[str] = None,
+        *,
+        include_system: bool = False,
+        add_prompt_stub: bool = True,
+        brand_assistant: bool = False,
+    ) -> str:
+        """
+        Returns a string like:
+        "User: hi\nAssistant: hello\nUser:\n"
+        - If brand_assistant=True and model_name is provided, uses "Assistant (model_name)".
+        - include_system optionally shows system messages as 'System: ...'.
+        - add_prompt_stub appends trailing 'User:' when last speaker isn't the user.
+        """
+        lines: List[str] = []
+        for m in self._messages:
+            role = m["role"]
+            if role == "system" and not include_system:
+                continue
+            if role == "user":
+                label = self.user_name
+            elif role == "system":
+                label = "System"
+            else:
+                if brand_assistant and model_name:
+                    label = f"Assistant ({model_name})"
+                else:
+                    label = "Assistant"
+            lines.append(f"{label}: {m['content']}".rstrip())
+
+        if add_prompt_stub and (not self._messages or self._messages[-1]["role"] != "user"):
+            lines.append(f"{self.user_name}:")
+        # End with a newline for nicer console rendering
+        return "\n".join(lines) + ("\n" if lines else "")
+
+
 # ---- Base class ------------------------------------------------------------
 
 class LLM(ABC):
@@ -378,12 +484,25 @@ if __name__ == "__main__":
     try:
         g = Gemini(model="gemini-2.5-flash", quiet=True)
         g.config_api()  # reads GEMINI_API_KEY / GOOGLE_API_KEY
+
+        mem = ChatMemory()
+
         # Clear console
         os.system("cls" if os.name == "nt" else "clear")
         while True:
             msg = input("You: ")
             if msg.strip().lower() in {"exit", "quit"}:
                 break
-            print("Gemini:", g.send_msg(msg))
+
+            # keep history and send the whole conversation
+            mem.add_user(msg)
+            reply = g.send_msg(mem.messages())
+            mem.add_assistant(reply)
+
+            # dynamic model label (class name) to keep output format like "Gemini: ..."
+            print(f"{g.__class__.__name__}:", reply)
+
+            # If you ever need the string history:
+            # print(mem.as_string(g.__class__.__name__, brand_assistant=True))
     except Exception as e:
         print("[Gemini error]", e)

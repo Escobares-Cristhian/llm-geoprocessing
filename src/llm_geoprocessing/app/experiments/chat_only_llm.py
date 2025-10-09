@@ -1,20 +1,33 @@
 import os
-from llm_geoprocessing.app.llm.LLM import Gemini
+from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 
 if __name__ == "__main__":
     # Gemini
-    g = Gemini(model="gemini-2.5-flash")
+    g = Gemini(model="gemini-2.5-flash", quiet=True)
     g.config_api()
-    # print("Gemini:", g.send_msg("Say hi in 5 words."))
-    
+        
     # Clear the console
     os.system('clear')
 
+    mem = ChatMemory()
     
     # Interactive chat
     while True:
         msg = input("You: ")
-        if msg.lower() in ["exit", "quit"]:
+        if not msg.strip():
+            continue
+        low = msg.strip().lower()
+        if low in ["exit", "quit"]:
             break
-        response = g.send_msg(msg, quiet=True)
-        print("Gemini:", response)
+        if low in [":history", "/history"]:
+            print(mem.as_string(g.__class__.__name__))
+            continue
+        if low in [":clear", "/clear"]:
+            mem.clear()
+            print("[memory cleared]")
+            continue
+
+        mem.add_user(msg)
+        response = g.send_msg(mem.messages(), quiet=True)
+        mem.add_assistant(response)
+        print(f"{g.__class__.__name__}:", response)
