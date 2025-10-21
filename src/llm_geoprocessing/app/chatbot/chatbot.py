@@ -26,22 +26,54 @@ class Chatbot:
         self.mem.add_assistant(response)
         return response
     
+    # def interactive_chat(self):
+    #     while True:
+    #         msg = input("You: ")
+    #         if not msg.strip():
+    #             continue
+
+    #         command = self.check_command(msg)
+    #         if command == "exit":
+    #             break
+    #         if command:
+    #             print(command)
+    #             continue
+
+    #         response = self.send_message(msg)
+    #         print(f"{self.chat.__class__.__name__}:", response)
+    
+    def chat_once(self):
+        msg = input("You: ")
+        
+        # If empty input, ask again for input
+        if not msg.strip():
+            return "ask for input"
+        
+        # Check for commands
+        command = self.check_command(msg)
+        if command == "exit":
+            return "exit"
+        if command:
+            return command
+
+        # Send message to LLM and get response
+        response = self.send_message(msg)
+        return response
+    
     def interactive_chat(self):
         while True:
-            msg = input("You: ")
-            if not msg.strip():
+            response = self.chat_once()
+            
+            # If empty input, ask again for input
+            if response == "ask for input":
                 continue
-
-            command = self.check_command(msg)
-            if command == "exit":
+            
+            # Handle exit command
+            if response == "exit":
                 break
-            if command:
-                print(command)
-                continue
-
-            response = self.send_message(msg)
+            
+            # Print LLM response
             print(f"{self.chat.__class__.__name__}:", response)
-    
 
 if __name__ == "__main__":
     # Initialize chatbot

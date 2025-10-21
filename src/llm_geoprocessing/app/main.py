@@ -6,3 +6,7 @@ if __name__ == "__main__":
 
     # Start interactive chat
     chatbot.interactive_chat()
+    
+    # Test single chat once
+    response = chatbot.chat_once()
+    print(f"{chatbot.chat.__class__.__name__}:", response)
