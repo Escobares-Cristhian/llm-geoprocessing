@@ -1,4 +1,5 @@
 import os
+from typing import Optional
 from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 
 
@@ -9,7 +10,7 @@ class Chatbot:
         self.chat.config_api()
         self.mem = ChatMemory()
     
-    def check_command(self, msg):
+    def check_command(self, msg: str) -> Optional[str]:
         low = msg.strip().lower()
         if low in ["exit", "quit"]:
             return "exit"
@@ -19,31 +20,17 @@ class Chatbot:
             self.mem.clear()
             return "[memory cleared]"
         return None
-    
-    def send_message(self, msg):
+
+    def send_message(self, msg: str) -> str:
         self.mem.add_user(msg)
         response = self.chat.send_msg(self.mem.messages(), quiet=True)
         self.mem.add_assistant(response)
         return response
     
-    # def interactive_chat(self):
-    #     while True:
-    #         msg = input("You: ")
-    #         if not msg.strip():
-    #             continue
-
-    #         command = self.check_command(msg)
-    #         if command == "exit":
-    #             break
-    #         if command:
-    #             print(command)
-    #             continue
-
-    #         response = self.send_message(msg)
-    #         print(f"{self.chat.__class__.__name__}:", response)
-    
-    def chat_once(self):
-        msg = input("You: ")
+    def chat_once(self, msg: Optional[str] = None):
+        # If no message provided, ask for input
+        if msg is None:
+            msg = input("You: ")
         
         # If empty input, ask again for input
         if not msg.strip():
