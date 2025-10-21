@@ -3,8 +3,8 @@ from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 
 if __name__ == "__main__":
     # Gemini
-    g = Gemini(model="gemini-2.5-flash", quiet=True)
-    g.config_api()
+    chat = Gemini(model="gemini-2.5-flash", quiet=True)
+    chat.config_api()
         
     # Clear the console
     os.system('clear')
@@ -20,7 +20,7 @@ if __name__ == "__main__":
         if low in ["exit", "quit"]:
             break
         if low in [":history", "/history"]:
-            print(mem.as_string(g.__class__.__name__))
+            print(mem.as_string(chat.__class__.__name__))
             continue
         if low in [":clear", "/clear"]:
             mem.clear()
@@ -28,6 +28,6 @@ if __name__ == "__main__":
             continue
 
         mem.add_user(msg)
-        response = g.send_msg(mem.messages(), quiet=True)
+        response = chat.send_msg(mem.messages(), quiet=True)
         mem.add_assistant(response)
-        print(f"{g.__class__.__name__}:", response)
+        print(f"{chat.__class__.__name__}:", response)

@@ -482,8 +482,8 @@ class Gemini(LLM):
 if __name__ == "__main__":
     # Example Gemini interactive loop
     try:
-        g = Gemini(model="gemini-2.5-flash", quiet=True)
-        g.config_api()  # reads GEMINI_API_KEY / GOOGLE_API_KEY
+        chat = Gemini(model="gemini-2.5-flash", quiet=True)
+        chat.config_api()  # reads GEMINI_API_KEY / GOOGLE_API_KEY
 
         mem = ChatMemory()
 
@@ -496,13 +496,13 @@ if __name__ == "__main__":
 
             # keep history and send the whole conversation
             mem.add_user(msg)
-            reply = g.send_msg(mem.messages())
+            reply = chat.send_msg(mem.messages())
             mem.add_assistant(reply)
 
             # dynamic model label (class name) to keep output format like "Gemini: ..."
-            print(f"{g.__class__.__name__}:", reply)
+            print(f"{chat.__class__.__name__}:", reply)
 
             # If you ever need the string history:
-            # print(mem.as_string(g.__class__.__name__, brand_assistant=True))
+            # print(mem.as_string(chat.__class__.__name__, brand_assistant=True))
     except Exception as e:
         print("[Gemini error]", e)
