@@ -51,3 +51,17 @@ def define_mode(msg: str, modes: list, modes_explained: Optional[dict]=None) -> 
     
     # If no valid mode is selected, raise an error
     raise ValueError("No valid mode selected.")
+
+
+def define_mode_interaction(msg) -> str:
+    modes = ["Geoproceso", "Consulta o Interpretación de Datos", "Consulta no geoespacial"]
+
+    modes_explained = {
+        "Geoproceso": "Realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, etc.",
+        "Consulta o Interpretación de Datos": "Responder preguntas relacionadas con datos geográficos, interpretar información espacial, proporcionar explicaciones sobre conceptos geográficos, etc.",
+        "Consulta no geoespacial": "Responder preguntas generales que no estén relacionadas con datos geográficos o espaciales."
+    }
+    
+    selected_mode = define_mode(msg, modes, modes_explained)
+    
+    return selected_mode
