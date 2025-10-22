@@ -97,7 +97,7 @@ def complete_json(user_message: str) -> Dict[str, Any]:
             + "\n Respond in the same language as the user."
         )
         q_msg = chat.send_message(q_prompt)
-        print(q_msg)  # show LLM's question to the user
+        print(f"{chat.chat.__class__.__name__}: {q_msg}") # show LLM's question to the user
 
         user_answer = input("You: ").strip()
         if user_answer.lower() in {"exit", "quit"}:
@@ -106,7 +106,8 @@ def complete_json(user_message: str) -> Dict[str, Any]:
         # Ask LLM to update the JSON with the user's answers
         update_prompt = (
             "Update the JSON with the user's answers. Keep confirmed fields. "
-            "Ask follow-ups only if still missing.\n\n"
+            "Ask follow-ups only if still missing.\n"
+            "Do not assume information except when the user ask to assume, or when the user is clearly a non expert.\n\n"
             f"Current JSON:\n```json\n{json.dumps(state, ensure_ascii=False)}\n```\n\n"
             f"User reply:\n{user_answer}\n\n{_schema_instructions()}"
         )
