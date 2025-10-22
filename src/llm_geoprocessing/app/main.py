@@ -41,7 +41,7 @@ if __name__ == "__main__":
     
     if selected_mode == "geoprocessing":
         print("Entering Geoprocessing Mode...")
-        geoprocess_main()
+        geoprocess_main(msg)
     
     # -----------------------------------
     # ----- Interpreter Interaction -----
