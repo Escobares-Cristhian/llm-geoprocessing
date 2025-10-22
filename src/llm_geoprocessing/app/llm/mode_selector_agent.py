@@ -64,4 +64,13 @@ def define_mode_interaction(msg) -> str:
     
     selected_mode = define_mode(msg, modes, modes_explained)
     
+    mode_to_workflow = {
+        "exit": "exit",
+        "Geoproceso": "geoprocessing",
+        "Consulta o Interpretación de Datos": "interpreter",
+        "Consulta no geoespacial": "interpreter"
+    }
+    
+    selected_mode = mode_to_workflow[selected_mode]
+    
     return selected_mode
