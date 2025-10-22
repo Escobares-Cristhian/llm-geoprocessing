@@ -15,7 +15,8 @@ class Chatbot:
         if low in ["exit", "quit"]:
             return "exit"
         if low in [":history", "/history"]:
-            return self.mem.as_string(self.chat.__class__.__name__)
+            history =  self.mem.as_string(self.chat.__class__.__name__)
+            return "----- INIT: Chat History -----\n" + history + "\n----- END: Chat History -----"
         if low in [":clear", "/clear"]:
             self.mem.clear()
             return "[memory cleared]"
@@ -45,7 +46,7 @@ class Chatbot:
 
         # Send message to LLM and get response
         response = self.send_message(msg)
-        return response
+        return f"{self.chat.__class__.__name__}: {response}"
     
     def interactive_chat(self):
         while True:
@@ -60,7 +61,7 @@ class Chatbot:
                 break
             
             # Print LLM response
-            print(f"{self.chat.__class__.__name__}:", response)
+            print(response)
 
 if __name__ == "__main__":
     # Initialize chatbot
