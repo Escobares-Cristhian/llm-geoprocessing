@@ -9,22 +9,30 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 # ----- JSON Completion Logic -----
 # ---------------------------------
 
+import json
+import re
+from typing import Optional, Dict, Any, List
+
+# NOTE: Assumes a Chatbot() class is available in your environment.
+# from your_llm_client import Chatbot
+
+
 def _schema_instructions() -> str:
     # Strict schema + rules (concise)
     return (
         "Return ONLY a JSON wrapper with keys: 'json', 'complete', 'questions'.\n"
         "- 'json' keys:\n"
-        "  1) 'products': {'A': '<satellite>_<product>', 'B': ..., ...}. Satellite may be 'ANY'.\n"
+        "  1) 'products': object mapping product IDs ('A','B',...) to objects with:\n"
+        "     - 'name': string (product name, e.g., '<satellite>_<product>'; satellite may be 'ANY').\n"
+        "     - 'date': {'initial_date':'YYYY-MM-DD','end_date':'YYYY-MM-DD',"
+        "     - 'proj': string (use 'default' to keep original).\n"
+        "     - 'res': float OR the string 'NaN' to keep original.\n"
         "  2) 'actions': list of 2-item lists: ['recortar', <string>] and ['algorithm', <string>]. "
         "     'recortar' value: a shapefile name (no path) OR a bbox string like "
         "     '[x_min, y_min, x_max, y_max], geodesic=True/False' OR 'no'. "
-        "     'algorithm' value: 'no' OR a formula starting with '=' (e.g., '=(A-B)/(A+B)'). "
-        "     If user wrote 'equation', treat as 'algorithm'.\n"
-        "  3) 'date': {'initial_date':'YYYY-MM-DD','end_date':'YYYY-MM-DD',"
-        "'initial_month_day':'MM-DD','end_month_day':'MM-DD'} (inclusive).\n"
-        "  4) 'proj': string (use 'default' to keep original).\n"
-        "  5) 'resol': float OR the string 'NaN' (keep original).\n"
-        "  6) 'other_params': dict (can be {}).\n"
+        "     'algorithm' value: 'no' OR a formula starting with '=' using product IDs "
+        "     (e.g., '=(A-B)/(A+B)'). If user wrote 'equation', treat as 'algorithm'.\n"
+        "  3) 'other_params': dict (can be {}).\n"
         "Never invent values. If unknown, leave missing and add precise questions.\n"
         "Wrapper format:\n"
         "{ 'json': {...}, 'complete': true|false, 'questions': ['Q1','Q2',...] }\n"
@@ -86,6 +94,7 @@ def complete_json(user_message: str) -> Dict[str, Any]:
         q_prompt = (
             "Compose a single concise message asking ONLY these questions, nothing else.\n"
             + "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
+            + "\n Respond in the same language as the user."
         )
         q_msg = chat.send_message(q_prompt)
         print(q_msg)  # show LLM's question to the user
@@ -111,23 +120,34 @@ def complete_json(user_message: str) -> Dict[str, Any]:
         questions = list(wrapper.get("questions", []))
 
     # 3) Minimal shape checks (simple and strict)
-    required = ["products", "actions", "date", "proj", "resol", "other_params"]
+    required = ["products", "actions", "other_params"]  # per-product date/proj/res now nested
     if not all(k in state for k in required):
         raise ValueError("Final JSON missing required keys.")
     if not isinstance(state["products"], dict):
         raise ValueError("'products' must be a dict.")
     if not isinstance(state["actions"], list):
         raise ValueError("'actions' must be a list.")
-    if not isinstance(state["date"], dict):
-        raise ValueError("'date' must be a dict.")
-    if not isinstance(state["proj"], str):
-        raise ValueError("'proj' must be a string.")
-    if not (isinstance(state["resol"], (int, float)) or state["resol"] == "NaN"):
-        raise ValueError("'resol' must be a float or 'NaN'.")
     if not isinstance(state["other_params"], dict):
         raise ValueError("'other_params' must be a dict.")
 
+    # Per-product validation: each product must have name, date, proj, res
+    for pid, pobj in state["products"].items():
+        if not isinstance(pobj, dict):
+            raise ValueError(f"Product '{pid}' must be an object.")
+        for k in ("name", "date", "proj", "res"):
+            if k not in pobj:
+                raise ValueError(f"Product '{pid}' missing '{k}'.")
+        if not isinstance(pobj["name"], str):
+            raise ValueError(f"Product '{pid}'.name must be a string.")
+        if not isinstance(pobj["proj"], str):
+            raise ValueError(f"Product '{pid}'.proj must be a string.")
+        if not (isinstance(pobj["res"], (int, float)) or pobj["res"] == "NaN"):
+            raise ValueError(f"Product '{pid}'.res must be a float or 'NaN'.")
+        if not isinstance(pobj["date"], dict):
+            raise ValueError(f"Product '{pid}'.date must be a dict.")
+
     return state
+
 
 # -------------------------------
 # ----- Geoprocessing Logic -----

@@ -57,8 +57,8 @@ def define_mode_interaction(msg) -> str:
     modes = ["Geoproceso", "Consulta o Interpretación de Datos", "Consulta no geoespacial"]
 
     modes_explained = {
-        "Geoproceso": "Realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, etc.",
-        "Consulta o Interpretación de Datos": "Responder preguntas relacionadas con datos geográficos, interpretar información espacial, proporcionar explicaciones sobre conceptos geográficos, etc.",
+        "Geoproceso": "Cuando el usuario pide o necesita realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, cálculo de estadísticas, etc.",
+        "Consulta o Interpretación de Datos": "Responder preguntas relacionadas con datos geográficos, interpretar información espacial, proporcionar explicaciones sobre conceptos geográficos, etc. Pero sin realizar operaciones de geoprocesamiento o cálculos.",
         "Consulta no geoespacial": "Responder preguntas generales que no estén relacionadas con datos geográficos o espaciales."
     }
     
