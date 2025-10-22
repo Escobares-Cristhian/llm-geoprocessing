@@ -361,7 +361,7 @@ class ChatGPT(LLM):
 
 class Gemini(LLM):
     """
-    Gemini client using `google-generativeai`.
+    Gemini client using the new `google-genai` SDK (Google GenAI).
 
     Env:
       - GEMINI_API_KEY or GOOGLE_API_KEY
@@ -372,8 +372,8 @@ class Gemini(LLM):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
         self.quiet: bool = bool(kwargs.pop("quiet", False))
         super().__init__(*args, **kwargs)
-        self._genai = None
-        self._base_model = None
+        self._genai_client = None
+        self._genai_types = None
         self._model_name_cache: Optional[str] = None
 
     def config_api(
@@ -399,40 +399,54 @@ class Gemini(LLM):
         # Silence native stderr during import/configure too (logs can appear here).
         with _quiet_ctx(self.quiet):
             try:
-                import google.generativeai as genai  # type: ignore
+                from google import genai  # type: ignore
+                from google.genai import types  # type: ignore
             except Exception as e:
                 raise LLMConfigError(
-                    "google-generativeai not installed. `pip install google-generativeai`"
+                    "google-genai not installed. `pip install google-genai`"
                 ) from e
 
-            genai.configure(api_key=api_key)
-            self._genai = genai
+            # Honor timeout at client level when possible (milliseconds).
+            # Fallback to dict if typed options aren't available.
+            http_options = None
+            try:
+                if timeout is not None:
+                    self.timeout = float(timeout)
+                if self.timeout is not None:
+                    http_options = types.HttpOptions(timeout=int(self.timeout * 1000))
+            except Exception:
+                if self.timeout is not None:
+                    http_options = {"timeout": int(self.timeout * 1000)}  # degrade gracefully
+
+            self._genai_client = genai.Client(api_key=api_key, http_options=http_options)
+            self._genai_types = types
 
             if model:
                 self.model = model
             if temperature is not None:
                 self.temperature = float(temperature)
-            if timeout is not None:
-                self.timeout = float(timeout)
             if not self.model:
-                self.model = "gemini-1.5-flash"
+                self.model = "gemini-2.5-flash"
 
-            self._base_model = genai.GenerativeModel(self.model)
             self._model_name_cache = self.model
             self._configured = True
 
     @staticmethod
-    def _to_gemini_contents(messages: List[Message]) -> Tuple[Optional[str], List[Dict[str, Any]]]:
+    def _to_gemini_contents(
+        messages: List[Message],
+        *,
+        types_mod: Any,
+    ) -> Tuple[Optional[str], List[Any]]:
         system_parts: List[str] = []
-        contents: List[Dict[str, Any]] = []
+        contents: List[Any] = []
         for m in messages:
             role, text = m["role"], m["content"]
             if role == "system":
                 system_parts.append(text)
             elif role == "assistant":
-                contents.append({"role": "model", "parts": [text]})
+                contents.append(types_mod.Content(role="model", parts=[types_mod.Part.from_text(text=text)]))
             else:  # user
-                contents.append({"role": "user", "parts": [text]})
+                contents.append(types_mod.Content(role="user", parts=[types_mod.Part.from_text(text=text)]))
         system_instr = "\n".join(p.strip() for p in system_parts if p.strip()) or None
         return system_instr, contents
 
@@ -446,30 +460,35 @@ class Gemini(LLM):
         **kwargs: Any,
     ) -> str:
         self._require_configured()
-        assert self._genai is not None and self._base_model is not None
+        assert self._genai_client is not None and self._genai_types is not None
 
         msgs = self._normalize_messages(messages)
-        system_instr, contents = self._to_gemini_contents(msgs)
+        system_instr, contents = self._to_gemini_contents(msgs, types_mod=self._genai_types)
         curr_temp = self.temperature if temperature is None else float(temperature)
 
-        generation_config: Dict[str, Any] = {"temperature": curr_temp}
+        # Build config using typed model; only include provided fields.
+        cfg_kwargs: Dict[str, Any] = {"temperature": curr_temp}
         if max_output_tokens is not None:
-            generation_config["max_output_tokens"] = int(max_output_tokens)
-
-        model_name = self._model_name_cache or self.model
+            cfg_kwargs["max_output_tokens"] = int(max_output_tokens)
         if system_instr:
-            model = self._genai.GenerativeModel(model_name, system_instruction=system_instr)
-        else:
-            model = self._base_model
+            cfg_kwargs["system_instruction"] = system_instr
+
+        # Thinking config: 2.5 Pro => 128, other 2.5 (Flash/Light) => 0 (disabled)
+        model_l = (self._model_name_cache or self.model or "").lower()
+        if "2.5" in model_l:
+            budget = 128 if "pro" in model_l else 0
+            cfg_kwargs["thinking_config"] = self._genai_types.ThinkingConfig(thinking_budget=budget)
+
+        config = self._genai_types.GenerateContentConfig(**cfg_kwargs)
 
         use_quiet = self.quiet if quiet is None else bool(quiet)
 
         def _call() -> str:
             with _quiet_ctx(use_quiet):
-                resp = model.generate_content(
-                    contents=contents,
-                    generation_config=generation_config,
-                    request_options={"timeout": self.timeout},
+                resp = self._genai_client.models.generate_content(
+                    model=self.model,
+                    contents=contents if contents else "",
+                    config=config,
                     **kwargs,
                 )
             return (getattr(resp, "text", None) or "").strip()
