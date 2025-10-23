@@ -177,15 +177,16 @@ def complete_json(user_message: str) -> Dict[str, Any]:
 # ----- Geoprocessing Logic -----
 # -------------------------------
 
-def geoprocess(json_instructions) -> None:
-    pass
+def geoprocess(json_instructions) -> str:
+    #TODO: DUMMY FUNCTION
+    return f"Here is the JSON instructions generated, assume this was processed: {json.dumps(json_instructions)}"
 
 # ----------------
 # ----- Main -----
 # ----------------
 
 def main(msg: str) -> Optional[str]:
-    print("Entered Geoprocessing Mode... Not yet implemented.")
+    print("Entered Geoprocessing Mode...")
     
     json_instructions = complete_json(msg)
     
