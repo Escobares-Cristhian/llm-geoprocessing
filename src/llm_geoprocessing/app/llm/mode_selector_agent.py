@@ -1,5 +1,30 @@
 from typing import Optional
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
+from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
+from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
+
+def _plugin_instructions() -> str:
+    # Information about available data and preprocessing
+    data_metadata = get_metadata_preprocessing()
+    data_docs = get_documentation_preprocessing()
+    
+    # Information about geoprocessing capabilities
+    geoprocess_metadata = get_metadata_geoprocessing()
+    geoprocess_docs = get_documentation_geoprocessing()
+    
+    # Combine to get instructions to append to the schema instructions
+    plugin_instructions = (
+        "Available Data and Preprocessing Options:\n"
+        f"{data_metadata}\n"
+        f"{data_docs}\n\n"
+        "Geoprocessing Capabilities:\n"
+        f"{geoprocess_metadata}\n"
+        f"{geoprocess_docs}\n\n"
+        f"General Notes:\n"
+        "- Do not assume availability of any data or capability that is not explicitly mentioned in 'Available Data and Preprocessing Options' or 'Geoprocessing Capabilities'."
+        "- If a geoprocess is explicitly requested, and do not have the geoprocessing capabilities, then it is not a geospatial query and should be treated as a non-geospatial query, like a general knowledge question."
+    )
+    return plugin_instructions
 
 def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> str:
     modes_str = "\n".join(f"- {mode}" for mode in modes)
@@ -13,6 +38,10 @@ def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> st
         prompt += f"\n\nMode Descriptions:\n{explanations}"
         prompt += "\n\nUse the descriptions to help you choose the most appropriate mode."
         prompt += "\n\nRemember to respond with only the exact name of the selected mode and nothing else."
+    
+    # Add plugin instructions for context
+    prompt += f"\n\nContext Information Dump:\n{_plugin_instructions()}"
+    
     return prompt
 
 
