@@ -3,40 +3,63 @@ import re
 from typing import Dict, Any, List, Optional
 
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
+from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
+from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 
     
 # ---------------------------------
 # ----- JSON Completion Logic -----
 # ---------------------------------
 
-import json
-import re
-from typing import Optional, Dict, Any, List
-
-# NOTE: Assumes a Chatbot() class is available in your environment.
-# from your_llm_client import Chatbot
-
+def _plugin_instructions() -> str:
+    # Information about available data and preprocessing
+    data_metadata = get_metadata_preprocessing()
+    data_docs = get_documentation_preprocessing()
+    
+    # Information about geoprocessing capabilities
+    geoprocess_metadata = get_metadata_geoprocessing()
+    geoprocess_docs = get_documentation_geoprocessing()
+    
+    # Combine to get instructions to append to the schema instructions
+    plugin_instructions = (
+        "Available Data and Preprocessing Options:\n"
+        f"{data_metadata}\n"
+        f"{data_docs}\n\n"
+        "Geoprocessing Capabilities:\n"
+        f"{geoprocess_metadata}\n"
+        f"{geoprocess_docs}\n\n"
+        f"General Notes:\n"
+        "- If a geoprocess is requested, and do not have all required data or geoprocessing capabilities, list precise questions in 'questions'.\n"
+        "- Do not assume availability of any data or capability that is not explicitly mentioned in 'Available Data and Preprocessing Options' or 'Geoprocessing Capabilities'.\n"
+    )
+    return plugin_instructions
 
 def _schema_instructions() -> str:
     # Strict schema + rules (concise)
-    return (
+    schema = (
         "Return ONLY a JSON wrapper with keys: 'json', 'complete', 'questions'.\n"
         "- 'json' keys:\n"
-        "  1) 'products': object mapping product IDs ('A','B',...) to objects with:\n"
-        "     - 'name': string (product name, e.g., '<satellite>_<product>'; satellite may be 'ANY').\n"
+        "  1) 'products': object mapping product ('A','B',...) to objects with:\n"
+        "     - order of the product 'A' is the first, 'B' the second, etc, only referred to the order of each item in the 'products' object.\n"
+        "     - 'name': string (full product path, must be a file, not a folder).\n"
         "     - 'date': {'initial_date':'YYYY-MM-DD','end_date':'YYYY-MM-DD',"
         "     - 'proj': string (use 'default' to keep original).\n"
         "     - 'res': float OR the string 'NaN' to keep original.\n"
-        "  2) 'actions': list of 2-item lists: ['recortar', <string>] and ['algorithm', <string>]. "
-        "     'recortar' value: a shapefile name (no path) OR a bbox string like "
-        "     '[x_min, y_min, x_max, y_max], geodesic=True/False' OR 'no'. "
-        "     'algorithm' value: 'no' OR a formula starting with '=' using product IDs "
-        "     (e.g., '=(A-B)/(A+B)'). If user wrote 'equation', treat as 'algorithm'.\n"
-        "  3) 'other_params': dict (can be {}).\n"
+        "  2) 'actions': list of 2-item lists, each 2-item list with format [<geoprocess name>, <input to geoprocess>]."
+        "     <geoprocess name> is one of the available geoprocessing functions listed in 'Geoprocessing Capabilities'."
+        "     <input to geoprocess> is a JSON object with the required parameters for that geoprocessing function, can be empty {} if no parameters are needed."
+        "     If no geoprocessing is requested, use an empty list []."
+        "     If multiple geoprocesses are requested or needed, list them in order.\n"
+        "  3) 'other_params': dict (can be {})."
+        "     Global parameters for the Geoprocessing Capabilities."
+        "     If no global parameters are needed, use an empty object {}."
+        "     If no global parameters are specified in the Geoprocessing Capabilities, use an empty object {}.\n"
         "Never invent values. If unknown, leave missing and add precise questions.\n"
         "Wrapper format:\n"
         "{ 'json': {...}, 'complete': true|false, 'questions': ['Q1','Q2',...] }\n"
     )
+    
+    return _plugin_instructions() + "\n\n" + schema
 
 
 def _sanitize_json(raw: str) -> str:
@@ -161,7 +184,7 @@ def geoprocess(json_instructions) -> None:
 # ----- Main -----
 # ----------------
 
-def main(msg: str) -> None:
+def main(msg: str) -> Optional[str]:
     print("Entered Geoprocessing Mode... Not yet implemented.")
     
     json_instructions = complete_json(msg)
@@ -169,4 +192,6 @@ def main(msg: str) -> None:
     print("Final JSON instructions:")
     print(json.dumps(json_instructions, ensure_ascii=False, indent=2))
 
-    geoprocess(json_instructions)
+    msg_to_interpreter = geoprocess(json_instructions)
+    
+    return msg_to_interpreter
