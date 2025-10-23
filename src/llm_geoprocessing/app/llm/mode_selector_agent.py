@@ -23,6 +23,8 @@ def _plugin_instructions() -> str:
         f"General Notes:\n"
         "- Do not assume availability of any data or capability that is not explicitly mentioned in 'Available Data and Preprocessing Options' or 'Geoprocessing Capabilities'."
         "- If a geoprocess is explicitly requested, and do not have the geoprocessing capabilities, then it is not a geospatial query and should be treated as a non-geospatial query, like a general knowledge question."
+        "- If exits previous messages, and the user ask for a change or made a suggestion, then it is a geospatial query."
+        "- Use activelly the previous messages to avoid asking for information that was already provided."
     )
     return plugin_instructions
 
@@ -45,12 +47,12 @@ def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> st
     return prompt
 
 
-def define_mode(msg: str, modes: list, modes_explained: Optional[dict]=None) -> str:
-    # Initialize chatbot
-    chatbot = Chatbot()
+def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Optional[dict]=None) -> str:
+    # Clone chatbot to avoid modifying the original
+    chat = chatbot.clone()
     
     # Check for commands (only exit command is relevant here)
-    command = chatbot.check_command(msg)
+    command = chat.check_command(msg)
     if command == "exit":
         return "exit"
 
@@ -61,7 +63,7 @@ def define_mode(msg: str, modes: list, modes_explained: Optional[dict]=None) -> 
     
     # --- Select mode
     # Ask for the mode once
-    response = chatbot.chat_once(prompt)
+    response = chat.chat_once(prompt)
 
     # Check if the response matches one of the modes
     if response in modes:
@@ -69,20 +71,20 @@ def define_mode(msg: str, modes: list, modes_explained: Optional[dict]=None) -> 
 
     # Check if only one mode is present in the response
     count = 0
-    selected_mode = None
+    selected_mode: Optional[str] = None
     for mode in modes:
         if mode in response:
             count += 1
             selected_mode = mode
 
-    if count == 1:
+    if count == 1 and selected_mode is not None:
         return selected_mode
     
     # If no valid mode is selected, raise an error
     raise ValueError("No valid mode selected.")
 
 
-def define_mode_interaction(msg) -> str:
+def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
     modes = ["Geoproceso", "Consulta o Interpretación de Datos", "Consulta no geoespacial"]
 
     modes_explained = {
@@ -91,7 +93,7 @@ def define_mode_interaction(msg) -> str:
         "Consulta no geoespacial": "Responder preguntas generales que no estén relacionadas con datos geográficos o espaciales."
     }
     
-    selected_mode = define_mode(msg, modes, modes_explained)
+    selected_mode = define_mode(chatbot, msg, modes, modes_explained)
     
     mode_to_workflow = {
         "exit": "exit",

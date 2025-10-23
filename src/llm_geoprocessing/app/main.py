@@ -22,7 +22,7 @@ if __name__ == "__main__":
         msg = get_user_input()
         
         # Select mode based on user input
-        selected_mode = define_mode_interaction(msg)
+        selected_mode = define_mode_interaction(chatbot, msg)
         
         # Handle exit command
         if selected_mode == "exit":
