@@ -43,7 +43,7 @@ if __name__ == "__main__":
         msg_to_interpreter = None
         if selected_mode == "geoprocessing":
             print("Entering Geoprocessing Mode...")
-            msg_to_interpreter = geoprocess_main(msg)
+            msg_to_interpreter = geoprocess_main(chatbot, msg)
         
         # -----------------------------------
         # ----- Interpreter Interaction -----

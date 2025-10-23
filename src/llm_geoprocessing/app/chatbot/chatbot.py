@@ -21,6 +21,14 @@ class Chatbot:
             self.mem.clear()
             return "[memory cleared]"
         return None
+    
+    def clone(self):
+        """Create a clone of the chatbot with independent memory copy."""
+        cloned = Chatbot()
+        # Copy all messages from the original to the clone
+        for msg in self.mem.messages():
+            cloned.mem.add(msg["role"], msg["content"])
+        return cloned
 
     def send_message(self, msg: str) -> str:
         self.mem.add_user(msg)
