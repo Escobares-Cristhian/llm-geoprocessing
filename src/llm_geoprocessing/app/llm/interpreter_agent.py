@@ -1,5 +1,30 @@
 from typing import Optional
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
+from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
+from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
+
+def _plugin_instructions() -> str:
+    # Information about available data and preprocessing
+    data_metadata = get_metadata_preprocessing()
+    data_docs = get_documentation_preprocessing()
+    
+    # Information about geoprocessing capabilities
+    geoprocess_metadata = get_metadata_geoprocessing()
+    geoprocess_docs = get_documentation_geoprocessing()
+    
+    # Combine to get instructions to append to the schema instructions
+    plugin_instructions = (
+        "Available Data and Preprocessing Options:\n"
+        f"{data_metadata}\n"
+        f"{data_docs}\n\n"
+        "Geoprocessing Capabilities:\n"
+        f"{geoprocess_metadata}\n"
+        f"{geoprocess_docs}\n\n"
+        f"General Notes:\n"
+        "- If a geoprocess is requested, and do not have all required data or geoprocessing capabilities, list precise questions in 'questions'.\n"
+        "- Do not assume availability of any data or capability that is not explicitly mentioned in 'Available Data and Preprocessing Options' or 'Geoprocessing Capabilities'.\n"
+    )
+    return plugin_instructions
 
 def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
     print("Entered Interpreter Mode...")
@@ -8,6 +33,8 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     interpreter_prompt = "Respond this message from User:"
     if msg_from_geoprocess is not None:
         interpreter_prompt += f"\nOutput Information from Geoprocessing Mode:\n{msg_from_geoprocess}\n"
+        interpreter_prompt += "\n\nAdditional Context Information Dump:\n"
+        interpreter_prompt += _plugin_instructions()
     
     # -----------------------------------------------------------------
     # ----- TODO: MISSING WAY TO GET INFORMATION FROM THE GEODATA -----
