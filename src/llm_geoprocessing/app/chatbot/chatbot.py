@@ -22,12 +22,33 @@ class Chatbot:
             return "[memory cleared]"
         return None
     
-    def clone(self):
+    # def clone(self):
+    #     """Create a clone of the chatbot with independent memory copy."""
+    #     cloned = Chatbot()
+    #     # Copy all messages from the original to the clone
+    #     for msg in self.mem.messages():
+    #         cloned.mem.add(msg["role"], msg["content"])
+    #     return cloned
+
+    def clone(self, instructions_to_add: Optional[str] = None):
         """Create a clone of the chatbot with independent memory copy."""
         cloned = Chatbot()
         # Copy all messages from the original to the clone
         for msg in self.mem.messages():
             cloned.mem.add(msg["role"], msg["content"])
+        
+        if instructions_to_add is None:
+            return cloned
+        
+        # Extract instructions from memory with a chat call
+        resumen = cloned.send_message(instructions_to_add)
+
+        # Elimino memoria
+        cloned.mem.clear()
+        
+        # Agrego resumen a la memoria
+        cloned.mem.add_system(resumen)
+        
         return cloned
 
     def send_message(self, msg: str) -> str:
