@@ -7,6 +7,7 @@ def get_metadata_preprocessing() -> str:
         "    - Bands: RGB (only available, not need to ask for others).\n"
         "    - Resolution: 10 meters per pixel (native is the only available, not need to ask for others).\n"
         "    - Projection: EPSG:4326 (WGS84). (native is the only available, not need to ask for others).\n"
+        
         ""
     )
 

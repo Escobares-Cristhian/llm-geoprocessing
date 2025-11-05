@@ -31,16 +31,16 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     print("Entered Interpreter Mode...")
     
     
-    print("\n\nOpening a dummy thumbnail in GEE viewer...\n")
-    # Córdoba city bbox and a simple 2024 window
-    open_s2_rgb_thumb(
-        bbox=(-64.30, -31.52, -64.05, -31.30),
-        start="2024-01-01",
-        end="2024-01-10",
-        mask=True,
-        width=1280
-    )
-    print("\n\nReturning to normal execution...\n")
+    # print("\n\nOpening a dummy thumbnail in GEE viewer...\n")
+    # # Córdoba city bbox and a simple 2024 window
+    # open_s2_rgb_thumb(
+    #     bbox=(-64.30, -31.52, -64.05, -31.30),
+    #     start="2024-01-01",
+    #     end="2024-01-10",
+    #     mask=True,
+    #     width=1280
+    # )
+    # print("\n\nReturning to normal execution...\n")
 
     
     # Prepare interpreter prompt

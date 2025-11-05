@@ -57,11 +57,12 @@ def _schema_instructions() -> str:
         "Return ONLY a JSON wrapper with keys: 'json', 'complete', 'questions'.\n"
         "- 'json' keys:\n"
         "  1) 'products': object mapping product IDs ('A','B',...) to objects. List of dicts with keys:\n"
-        "     - 'id': string (unique ID for this product).\n"
-        "     - 'name': string (full product path; must be a file, not a folder).\n"
-        "     - 'date': {'initial_date':'YYYY-MM-DD','end_date':'YYYY-MM-DD'}\n"
-        "     - 'proj': string (use 'default' to keep original).\n"
-        "     - 'res': number OR the string 'default' to keep original.\n"
+        "     - 'id': string (unique ID for this product). Obligatory.\n"
+        "     - 'name': string (full product path; must be a file, not a folder). Obligatory.\n"
+        "     - 'date': {'initial_date':'YYYY-MM-DD','end_date':'YYYY-MM-DD'} Obligatory.\n"
+        "     - 'proj': string (use 'default' to keep original). Obligatory.\n"
+        "     - 'res': number OR the string 'default' to keep original. Obligatory.\n"
+        "     - If no products are needed, use an empty list [].\n"
         "  2) 'actions': list of dicts, each with keys:\n"
         "     - 'geoprocess_name': string (must be listed in 'Geoprocessing Capabilities').\n"
         "     - 'input_json': object with ONLY required parameters; {} if none.\n"
@@ -277,142 +278,221 @@ Return ONLY the sections above, nothing else."""
         for q in questions:
             print(f"- {q}")
         print("+"*60)
-    
-    # 3) Minimal shape checks (simple and strict)
-    required = ["products", "actions", "other_params"]  # per-product date/proj/res now nested
-    if not all(k in state for k in required):
-        missing_keys = [k for k in required if k not in state]
-        raise ValueError(f"Final JSON missing required keys: {missing_keys}")
-    
-    # Disallow unexpected top-level keys
-    extra_keys = set(state.keys()) - set(required)
-    if extra_keys:
-        raise ValueError(f"Final JSON has unexpected keys: {sorted(extra_keys)}")
 
-    # products MUST be a list of product objects (each with a unique 'id')
-    products = state.get("products")
-    if not (isinstance(products, list) and all(isinstance(p, dict) for p in products)):
-        raise ValueError("'products' must be a list of product objects.")
-
-    actions = state.get("actions")
-    if not (isinstance(actions, list) and all(isinstance(a, dict) for a in actions)):
-        raise ValueError("'actions' must be a list of dicts.")
-
-    if not isinstance(state["other_params"], dict):
-        raise ValueError("'other_params' must be a dict.")
-
-    # Per-product validation
-    date_pat = re.compile(r"^\d{4}-\d{2}-\d{2}$")
-
-    def _parse_date(s: str) -> datetime:
-        return datetime.strptime(s, "%Y-%m-%d")
-
-    seen_product_ids = set()
-    for idx, pobj in enumerate(state["products"]):
-        if not isinstance(pobj, dict):
-            raise ValueError(f"Product at index {idx} must be an object.")
-
-        # must include required fields
-        for k in ("id", "name", "date", "proj", "res"):
-            if k not in pobj:
-                raise ValueError(f"Product at index {idx} missing '{k}'.")
-
-        if not (isinstance(pobj["id"], str) and pobj["id"]):
-            raise ValueError(f"Product at index {idx}.id must be a non-empty string.")
-        if pobj["id"] in seen_product_ids:
-            raise ValueError(f"Duplicate product id '{pobj['id']}'.")
-        seen_product_ids.add(pobj["id"])
-
-        if not isinstance(pobj["name"], str):
-            raise ValueError(f"Product '{pobj['id']}'.name must be a string.")
-        base = pobj["name"].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
-        if not base or base.endswith(("/", "\\")):
-            raise ValueError(f"Product '{pobj['id']}'.name must be a file path (not a folder).")
-
-        if not isinstance(pobj["proj"], str):
-            raise ValueError(f"Product '{pobj['id']}'.proj must be a string.")
-
-        if not ((isinstance(pobj["res"], (int, float)) and not isinstance(pobj["res"], bool)) or pobj["res"] == "default"):
-            raise ValueError(f"Product '{pobj['id']}'.res must be a float or 'default'.")
-
-        if not isinstance(pobj["date"], dict):
-            raise ValueError(f"Product '{pobj['id']}'.date must be a dict.")
-        if set(pobj["date"].keys()) != {"initial_date", "end_date"}:
-            raise ValueError(f"Product '{pobj['id']}'.date must have 'initial_date' and 'end_date'.")
-
-        di = pobj["date"]["initial_date"]
-        de = pobj["date"]["end_date"]
-        if not (isinstance(di, str) and date_pat.match(di)):
-            raise ValueError(f"Product '{pobj['id']}'.date['initial_date'] must be 'YYYY-MM-DD'.")
-        if not (isinstance(de, str) and date_pat.match(de)):
-            raise ValueError(f"Product '{pobj['id']}'.date['end_date'] must be 'YYYY-MM-DD'.")
-        if _parse_date(di) > _parse_date(de):
-            raise ValueError(f"Product '{pobj['id']}' has initial_date after end_date.")
-
-    # Actions: list of objects with required keys and unique output_id
-    known_ids = set(seen_product_ids)  # products usable by product_id
-    seen_outputs = set()
-
-    for i, act in enumerate(state["actions"]):
-        if not isinstance(act, dict):
-            raise ValueError(f"'actions[{i}]' must be an object.")
-        for k in ("geoprocess_name", "input_json", "output_id"):
-            if k not in act:
-                raise ValueError(f"'actions[{i}]' missing '{k}'.")
-
-        gname = act["geoprocess_name"]
-        params = act["input_json"]
-        out_id = act["output_id"]
-
-        if not (isinstance(gname, str) and gname):
-            raise ValueError(f"'actions[{i}].geoprocess_name' must be a non-empty string.")
-        if not isinstance(params, dict):
-            raise ValueError(f"'actions[{i}].input_json' must be an object.")
-        if not (isinstance(out_id, str) and out_id):
-            raise ValueError(f"'actions[{i}].output_id' must be a non-empty string.")
-        if out_id in seen_outputs:
-            raise ValueError(f"Duplicate output_id in actions: '{out_id}'.")
-
-        # id references must exist (product or prior output)
-        def _must_exist(v: str, label: str):
-            if not isinstance(v, str):
-                raise ValueError(f"'actions[{i}].input_json.{label}' must be a string.")
-            if v not in known_ids:
-                raise ValueError(f"'actions[{i}]' references unknown id '{v}' in '{label}'.")
-
-        if "product_id" in params:
-            _must_exist(params["product_id"], "product_id")
-        if "product_id1" in params:
-            _must_exist(params["product_id1"], "product_id1")
-        if "product_id2" in params:
-            _must_exist(params["product_id2"], "product_id2")
-
-        # Optional structural checks
-        if "bbox" in params:
-            bbox = params["bbox"]
-            if not (isinstance(bbox, list) and len(bbox) == 4 and all(isinstance(x, (int, float)) for x in bbox)):
-                raise ValueError(f"'actions[{i}].input_json.bbox' must be a list of 4 numbers.")
-        if "geodesic" in params and not isinstance(params["geodesic"], bool):
-            raise ValueError(f"'actions[{i}].input_json.geodesic' must be boolean.")
-        if "date_initial" in params:
-            di = params["date_initial"]
-            if not (isinstance(di, str) and date_pat.match(di)):
-                raise ValueError(f"'actions[{i}].input_json.date_initial' must be 'YYYY-MM-DD'.")
-        if "date_end" in params:
-            de = params["date_end"]
-            if not (isinstance(de, str) and date_pat.match(de)):
-                raise ValueError(f"'actions[{i}].input_json.date_end' must be 'YYYY-MM-DD'.")
-        if "date_initial" in params and "date_end" in params:
-            if _parse_date(params["date_initial"]) > _parse_date(params["date_end"]):
-                raise ValueError(f"'actions[{i}]' has date_initial after date_end.")
-
-        # Register this action's output for subsequent references
-        seen_outputs.add(out_id)
-        known_ids.add(out_id)
-
-
+    state = check_and_fix_json(chatbot, state, hierarchy=0, max_hierarchy=10)
 
     return state
+
+def HandleValueErrorWithLLM(chatbot: Chatbot, state: Dict[str, Any], error_msg: str) -> Dict[str, Any]:
+    """
+    Handle ValueError exceptions by asking the LLM to fix the issue.
+    """
+    # Build prompt to ask LLM to fix the issue
+    fix_prompt = (
+        "The current JSON has the following issue:\n"
+        f"{error_msg}\n\n"
+        "Please fix the JSON accordingly, keeping all other fields intact. "
+        "If you cannot fix it due to missing information, set 'complete': false and add precise questions.\n\n"
+        f"Current JSON:\n```json\n{json.dumps(state, ensure_ascii=False)}\n```\n\n"
+        f"{_schema_instructions()}"
+    )
+    reply = chatbot.send_message(fix_prompt)
+    wrapper = _extract_first_json_block(reply)
+    if not wrapper or not all(k in wrapper for k in ("json", "complete", "questions")):
+        raise ValueError("LLM did not return a valid wrapper JSON during error handling.")
+
+    return wrapper["json"]
+
+def check_and_fix_json(
+    chatbot: Chatbot,
+    state: Dict[str, Any],
+    hierarchy: int,
+    max_hierarchy: int,
+    *,
+    error_attempts: Optional[Dict[str, int]] = None,
+    max_hierarchy_per_error: int = 3,
+) -> Dict[str, Any]:
+    """
+    Recursive JSON checker/fixer:
+    - Tries to validate `state`.
+    - On any ValueError, asks the LLM to fix it and retries recursively.
+    - Stops when either `max_hierarchy` is reached globally, or a specific error
+      exceeds `max_hierarchy_per_error`.
+    """
+
+    if hierarchy >= max_hierarchy:
+        raise ValueError("Maximum JSON correction hierarchy reached.")
+
+    if error_attempts is None:
+        error_attempts = {}
+
+    def _normalize_error_key(msg: str) -> str:
+        # Bucket similar errors together by stripping indices, quoted values, and numbers.
+        # This keeps the per-error counter meaningful with minimal code.
+        k = re.sub(r"'[^']*'", "''", msg)      # remove quoted specifics
+        k = re.sub(r"\d+", "#", k)             # replace digits
+        k = re.sub(r"\s+", " ", k).strip()     # collapse spaces
+        return k
+
+    def _retry_with_llm(err_msg: str) -> Dict[str, Any]:
+        key = _normalize_error_key(err_msg)
+        cnt = error_attempts.get(key, 0)
+        if cnt >= max_hierarchy_per_error:
+            raise ValueError(f"Exceeded attempts for error: {key} (limit={max_hierarchy_per_error})")
+        error_attempts[key] = cnt + 1
+
+        fixed = HandleValueErrorWithLLM(chatbot, state, err_msg)
+        return check_and_fix_json(
+            chatbot,
+            fixed,
+            hierarchy=hierarchy + 1,
+            max_hierarchy=max_hierarchy,
+            error_attempts=error_attempts,
+            max_hierarchy_per_error=max_hierarchy_per_error,
+        )
+
+    try:
+        # ----------------------------
+        # Minimal shape checks (simple and strict)
+        # ----------------------------
+        required = ["products", "actions", "other_params"]  # per-product date/proj/res now nested
+        if not all(k in state for k in required):
+            missing_keys = [k for k in required if k not in state]
+            raise ValueError(f"Final JSON missing required keys: {missing_keys}")
+
+        # Disallow unexpected top-level keys
+        extra_keys = set(state.keys()) - set(required)
+        if extra_keys:
+            raise ValueError(f"Final JSON has unexpected keys: {sorted(extra_keys)}")
+
+        # products MUST be a list of product objects (each with a unique 'id')
+        products = state.get("products")
+        if not (isinstance(products, list) and all(isinstance(p, dict) for p in products)):
+            raise ValueError("'products' must be a list of product objects.")
+
+        actions = state.get("actions")
+        if not (isinstance(actions, list) and all(isinstance(a, dict) for a in actions)):
+            raise ValueError("'actions' must be a list of dicts.")
+
+        if not isinstance(state["other_params"], dict):
+            raise ValueError("'other_params' must be a dict.")
+
+        # Per-product validation
+        date_pat = re.compile(r"^\d{4}-\d{2}-\d{2}$")
+
+        def _parse_date(s: str) -> datetime:
+            return datetime.strptime(s, "%Y-%m-%d")
+
+        seen_product_ids = set()
+        # If not empty products, check each product
+        if state["products"]:
+            for idx, pobj in enumerate(state["products"]):
+                if not isinstance(pobj, dict):
+                    raise ValueError(f"Product at index {idx} must be an object.")
+
+                # must include required fields
+                for k in ("id", "name", "date", "proj", "res"):
+                    if k not in pobj:
+                        raise ValueError(f"Product at index {idx} missing '{k}'.")
+
+                if not (isinstance(pobj["id"], str) and pobj["id"]):
+                    raise ValueError(f"Product at index {idx}.id must be a non-empty string.")
+                if pobj["id"] in seen_product_ids:
+                    raise ValueError(f"Duplicate product id '{pobj['id']}'.")
+                seen_product_ids.add(pobj["id"])
+
+                if not isinstance(pobj["name"], str):
+                    raise ValueError(f"Product '{pobj['id']}'.name must be a string.")
+                base = pobj["name"].rsplit("/", 1)[-1].rsplit("\\", 1)[-1]
+                if not base or base.endswith(("/", "\\")):
+                    raise ValueError(f"Product '{pobj['id']}'.name must be a file path (not a folder).")
+
+                if not isinstance(pobj["proj"], str):
+                    raise ValueError(f"Product '{pobj['id']}'.proj must be a string.")
+
+                if not ((isinstance(pobj["res"], (int, float)) and not isinstance(pobj["res"], bool)) or pobj["res"] == "default"):
+                    raise ValueError(f"Product '{pobj['id']}'.res must be a float or 'default'.")
+
+                if not isinstance(pobj["date"], dict):
+                    raise ValueError(f"Product '{pobj['id']}'.date must be a dict.")
+                if set(pobj["date"].keys()) != {"initial_date", "end_date"}:
+                    raise ValueError(f"Product '{pobj['id']}'.date must have 'initial_date' and 'end_date'.")
+
+                di = pobj["date"]["initial_date"]
+                de = pobj["date"]["end_date"]
+                if not (isinstance(di, str) and date_pat.match(di)):
+                    raise ValueError(f"Product '{pobj['id']}'.date['initial_date'] must be 'YYYY-MM-DD'.")
+                if not (isinstance(de, str) and date_pat.match(de)):
+                    raise ValueError(f"Product '{pobj['id']}'.date['end_date'] must be 'YYYY-MM-DD'.")
+                if _parse_date(di) > _parse_date(de):
+                    raise ValueError(f"Product '{pobj['id']}' has initial_date after end_date.")
+
+            # Actions: list of objects with required keys and unique output_id
+            known_ids = set(seen_product_ids)  # products usable by product_id
+            seen_outputs = set()
+
+            for i, act in enumerate(state["actions"]):
+                if not isinstance(act, dict):
+                    raise ValueError(f"'actions[{i}]' must be an object.")
+                for k in ("geoprocess_name", "input_json", "output_id"):
+                    if k not in act:
+                        raise ValueError(f"'actions[{i}]' missing '{k}'.")
+
+                gname = act["geoprocess_name"]
+                params = act["input_json"]
+                out_id = act["output_id"]
+
+                if not (isinstance(gname, str) and gname):
+                    raise ValueError(f"'actions[{i}].geoprocess_name' must be a non-empty string.")
+                if not isinstance(params, dict):
+                    raise ValueError(f"'actions[{i}].input_json' must be an object.")
+                if not (isinstance(out_id, str) and out_id):
+                    raise ValueError(f"'actions[{i}].output_id' must be a non-empty string.")
+                if out_id in seen_outputs:
+                    raise ValueError(f"Duplicate output_id in actions: '{out_id}'.")
+
+                # id references must exist (product or prior output)
+                def _must_exist(v: str, label: str):
+                    if not isinstance(v, str):
+                        raise ValueError(f"'actions[{i}].input_json.{label}' must be a string.")
+                    if v not in known_ids:
+                        raise ValueError(f"'actions[{i}]' references unknown id '{v}' in '{label}'.")
+
+                if "product_id" in params:
+                    _must_exist(params["product_id"], "product_id")
+                if "product_id1" in params:
+                    _must_exist(params["product_id1"], "product_id1")
+                if "product_id2" in params:
+                    _must_exist(params["product_id2"], "product_id2")
+
+                # Optional structural checks
+                if "bbox" in params:
+                    bbox = params["bbox"]
+                    if not (isinstance(bbox, list) and len(bbox) == 4 and all(isinstance(x, (int, float)) for x in bbox)):
+                        raise ValueError(f"'actions[{i}].input_json.bbox' must be a list of 4 numbers.")
+                if "geodesic" in params and not isinstance(params["geodesic"], bool):
+                    raise ValueError(f"'actions[{i}].input_json.geodesic' must be boolean.")
+                if "date_initial" in params:
+                    di = params["date_initial"]
+                    if not (isinstance(di, str) and date_pat.match(di)):
+                        raise ValueError(f"'actions[{i}].input_json.date_initial' must be 'YYYY-MM-DD'.")
+                if "date_end" in params:
+                    de = params["date_end"]
+                    if not (isinstance(de, str) and date_pat.match(de)):
+                        raise ValueError(f"'actions[{i}].input_json.date_end' must be 'YYYY-MM-DD'.")
+                if "date_initial" in params and "date_end" in params:
+                    if _parse_date(params["date_initial"]) > _parse_date(params["date_end"]):
+                        raise ValueError(f"'actions[{i}]' has date_initial after date_end.")
+
+                # Register this action's output for subsequent references
+                seen_outputs.add(out_id)
+                known_ids.add(out_id)
+
+        return state
+
+    except ValueError as e:
+        # All validation errors flow through here.
+        return _retry_with_llm(str(e))
 
 
 # -------------------------------
@@ -421,7 +501,50 @@ Return ONLY the sections above, nothing else."""
 
 def geoprocess(json_instructions) -> str:
     #TODO: DUMMY FUNCTION
-    return f"Here is the JSON instructions generated, assume this was processed: {json.dumps(json_instructions)}"
+    # return f"Here is the JSON instructions generated, assume this was processed: {json.dumps(json_instructions)}"
+
+    from llm_geoprocessing.app.plugins.gee.gee_client import open_s2_rgb_thumb
+    
+    # open_s2_rgb_thumb(
+    #     bbox=(-64.30, -31.52, -64.05, -31.30),
+    #     start="2024-01-01",
+    #     end="2024-01-10",
+    #     mask=True,
+    #     width=1280
+    # )
+    
+    #   "actions": [
+    # {
+    #   "geoprocess_name": "open_s2_rgb_thumb",
+    #   "input_json": {
+    #     "bbox": [
+    #       -64.25,
+    #       -31.47,
+    #       -64.12,
+    #       -31.35
+    #     ],
+    #     "start": "2025-01-01",
+    #     "end": "2025-02-01",
+    #     "mask": true,
+    #     "width": 1024
+    #   },
+    #   "output_id": "image_cordoba_capital_thumbnail"
+    # }
+
+    if len(json_instructions['actions']) != 1:
+        return "Geoprocessing function currently only supports a single action."
+    
+    if 'open_s2_rgb_thumb' in json_instructions['actions'][0]['geoprocess_name']:
+        out = open_s2_rgb_thumb(
+            bbox=json_instructions['actions'][0]['input_json']['bbox'],
+            start=json_instructions['actions'][0]['input_json']['start'],
+            end=json_instructions['actions'][0]['input_json']['end'],
+            mask=json_instructions['actions'][0]['input_json']['mask'],
+            width=json_instructions['actions'][0]['input_json']['width']
+        )
+        return f"Geoprocessing function 'open_s2_rgb_thumb' executed successfully in: {out}"
+    else:
+        return f"Geoprocessing function '{json_instructions['actions'][0]['geoprocess_name']}' is not implemented yet."
 
 # ----------------
 # ----- Main -----

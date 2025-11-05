@@ -7,6 +7,8 @@ class Chatbot:
     def __init__(self):
         # Gemini
         self.chat = Gemini(model="gemini-2.5-flash", quiet=True)
+        # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)
+        # self.chat = Gemini(model="gemini-2.0-flash-lite", quiet=True)
         self.chat.config_api()
         self.mem = ChatMemory()
     

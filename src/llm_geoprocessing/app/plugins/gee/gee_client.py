@@ -24,4 +24,5 @@ def open_s2_rgb_thumb(bbox: tuple[float,float,float,float],
         with open(p, "wb") as f:
             f.write(requests.get(url, timeout=60).content)
         print(f"[GEE] Saved preview to {p}")
+        return p
 
