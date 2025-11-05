@@ -6,9 +6,10 @@ from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 class Chatbot:
     def __init__(self):
         # Gemini
-        self.chat = Gemini(model="gemini-2.5-flash", quiet=True)
-        # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)
-        # self.chat = Gemini(model="gemini-2.0-flash-lite", quiet=True)
+        # self.chat = Gemini(model="gemini-2.5-pro", quiet=True)          # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
+        self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
+        # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)      # 250 RPD
+        # self.chat = Gemini(model="gemini-2.0-flash-lite", quiet=True) # 200 RPD
         self.chat.config_api()
         self.mem = ChatMemory()
     
