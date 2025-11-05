@@ -42,12 +42,18 @@ class Chatbot:
         
         # Extract instructions from memory with a chat call
         resumen = cloned.send_message(instructions_to_add)
+        
+        print("*"*60)
+        print("Resumen para nuevo chatbot clonado:")
+        print(resumen)
+        print("*"*60)
 
         # Elimino memoria
         cloned.mem.clear()
         
         # Agrego resumen a la memoria
         cloned.mem.add_system(resumen)
+        # cloned.mem.add_user(resumen)
         
         return cloned
 

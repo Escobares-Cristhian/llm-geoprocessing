@@ -49,7 +49,7 @@ def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> st
 
 def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Optional[dict]=None) -> str:
     # Clone chatbot to avoid modifying the original
-    chat = chatbot.clone()
+    chat = chatbot.clone(instructions_to_add=None)
     
     # Check for commands (only exit command is relevant here)
     command = chat.check_command(msg)

@@ -35,6 +35,9 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
         interpreter_prompt += f"\nOutput Information from Geoprocessing Mode:\n{msg_from_geoprocess}\n"
         interpreter_prompt += "\n\nAdditional Context Information Dump:\n"
         interpreter_prompt += _plugin_instructions()
+        
+        # DEBUG: Add assume instructions were generated and invent the output response
+        interpreter_prompt += "Assume the above instructions were processed and generated correctly, invent the output to give a dummy (but plausible) response to the user message.\n"
     
     # -----------------------------------------------------------------
     # ----- TODO: MISSING WAY TO GET INFORMATION FROM THE GEODATA -----
@@ -43,7 +46,7 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     interpreter_prompt += f"\nUser Message:\n{msg_from_user}\n"
     interpreter_prompt += (
         "\nBased on the above information, please provide a suitable response to the user's message."
-        " Be concise and relevant."
+        " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode."
     )
     
     # Check for commands (only exit command is relevant here)
