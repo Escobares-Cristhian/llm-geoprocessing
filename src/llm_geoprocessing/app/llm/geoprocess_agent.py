@@ -219,6 +219,8 @@ Return ONLY the sections above, nothing else."""
         q_prompt = (
             "Compose a single concise message asking ONLY these questions in bullet list, nothing else.\n"
             "Ask ONLY about ambiguities in the requested changes. "
+            "Do not repeat yourself in the questions, so do not ask '¿What is the resolution for the map in <location>?' and '¿What is the projection for the map in <location>?', instead as 'For the map in <location>, clarify these details: \\n- resolution: <small explaining of the information needed>\\n- projection: <small explaining of the information needed>'.\n"
+            "If you cannot bind questions like that, then ask them separately, but always try to minimize the number of questions asked collapsing them when possible (but maintaining bullet list format and sub-bullets when needed).\n"
             "Do NOT include questions about anything present in the baseline JSON that the user did not ask to change.\n"
             + "\n".join(f"{i+1}. {q}" for i, q in enumerate(questions))
             + "\n Respond in the same language as the user."
