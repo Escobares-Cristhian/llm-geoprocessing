@@ -15,21 +15,16 @@ class Chatbot:
         if low in ["exit", "quit"]:
             return "exit"
         if low in [":history", "/history"]:
-            history =  self.mem.as_string(self.chat.__class__.__name__)
+            history =  self.mem.as_string(self.chat.__class__.__name__, include_system=False)
             return "----- INIT: Chat History -----\n" + history + "\n----- END: Chat History -----"
+        if low in [":history-with-system", "/history-with-system"]:
+            history =  self.mem.as_string(self.chat.__class__.__name__, include_system=True)
+            return "----- INIT: Chat History (with system) -----\n" + history + "\n----- END: Chat History -----"
         if low in [":clear", "/clear"]:
             self.mem.clear()
             return "[memory cleared]"
         return None
     
-    # def clone(self):
-    #     """Create a clone of the chatbot with independent memory copy."""
-    #     cloned = Chatbot()
-    #     # Copy all messages from the original to the clone
-    #     for msg in self.mem.messages():
-    #         cloned.mem.add(msg["role"], msg["content"])
-    #     return cloned
-
     def clone(self, instructions_to_add: Optional[str] = None):
         """Create a clone of the chatbot with independent memory copy."""
         cloned = Chatbot()

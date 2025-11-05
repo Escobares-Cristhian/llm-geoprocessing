@@ -76,6 +76,7 @@ def _schema_instructions() -> str:
         "- If any required value is unknown or missing, omit it from 'json' and set 'complete': false; add precise questions.\n"
         "- Output MUST be minified JSON (single object), with no trailing commas and no extra keys.\n"
         "- Only assume information when the user explicitly asks to assume it.\n"
+        "- 'products' and 'actions' cannot be empty lists; if no products or actions are requested, then ask questions instead.\n"
         "Change Mode (if the user requests modifications and a prior JSON exists anywhere in the conversation):\n"
         "- Treat the most recent valid JSON as the authoritative baseline ('TRUTH').\n"
         "- Apply ONLY the user's requested changes. Keep all other values exactly as-is.\n"
@@ -108,7 +109,7 @@ def _extract_first_json_block(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def complete_json(chatbot: Chatbot, user_message: str) -> Dict[str, Any]:
+def complete_json(chatbot: Chatbot, user_message: str) -> Dict[str, Any] | str:
     """
     Build the target JSON by dialog with the user via the LLM.
     - Input: chatbot instance and single pre-processed message (string).
@@ -194,7 +195,7 @@ Return ONLY the sections above, nothing else."""
     prompt = (
         "Task: Extract everything you can from the user's message into the schema. "
         "If the user is requesting changes to an existing JSON, locate the most recent JSON present "
-        "anywhere in this conversation (assistant or user messages) and treat it as the authoritative "
+        "anywhere in this conversation (system, assistant or user messages) and treat it as the authoritative "
         "baseline ('TRUTH'). Apply ONLY the requested changes, keeping all other fields intact. "
         "Do NOT ask questions about unchanged parts; ask ONLY if the requested change itself is ambiguous.\n\n"
         f"User message:\n{user_message}\n\n{_schema_instructions()}"
@@ -227,9 +228,22 @@ Return ONLY the sections above, nothing else."""
         chatbot.mem.add_user(user_message)
         chatbot.mem.add_assistant(q_msg)
 
-        user_answer = input("You: ").strip()
-        if user_answer.lower() in {"exit", "quit"}:
-            raise KeyboardInterrupt("User aborted.")
+        # Get user answers
+        valid_user_answer = False
+        while not valid_user_answer:
+            user_answer = input("You: ").strip()
+
+            # Check for commands
+            command = chat.check_command(user_answer)
+            if command == "exit":
+                return "exit"
+            elif command == "ask for input":
+                continue  # ask again
+            elif command:
+                print(command) # print command output and ask again
+                continue
+            
+            valid_user_answer = True
 
         # Ask LLM to update the JSON with the user's answers
         update_prompt = (
@@ -418,6 +432,10 @@ def main(chatbot: Chatbot, msg: str) -> Optional[str]:
     
     # Build JSON instructions via dialog
     json_instructions = complete_json(chatbot, msg)
+    
+    # Handle exit command
+    if json_instructions == "exit":
+        return "exit"
     
     print("*"*60)
     print("Final JSON instructions:")

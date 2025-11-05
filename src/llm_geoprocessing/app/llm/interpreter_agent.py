@@ -47,6 +47,7 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     interpreter_prompt += (
         "\nBased on the above information, please provide a suitable response to the user's message."
         " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode."
+        " Respond in the same language as the user's message."
     )
     
     # Check for commands (only exit command is relevant here)

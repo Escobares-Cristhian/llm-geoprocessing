@@ -3,10 +3,23 @@ from llm_geoprocessing.app.llm.mode_selector_agent import define_mode_interactio
 from llm_geoprocessing.app.llm.geoprocess_agent import main as geoprocess_main
 from llm_geoprocessing.app.llm.interpreter_agent import main as interpreter_main
 
-def get_user_input(chat_prefix: str = "You: ") -> str:
-    msg = ""
-    while not msg.strip():
-        msg = input(chat_prefix)
+def get_user_input(chatbot: Chatbot, chat_prefix: str = "You: ") -> str | None:
+    valid_user_msg = False
+    while not valid_user_msg:
+        msg = input(chat_prefix).strip()
+
+        # Check for commands
+        command = chatbot.check_command(msg)
+        if command == "exit":
+            return "exit"
+        elif command == "ask for input":
+            continue  # ask again
+        elif command:
+            print(command) # print command output and ask again
+            continue
+
+        valid_user_msg = True
+    
     return msg
 
 if __name__ == "__main__":
@@ -19,7 +32,11 @@ if __name__ == "__main__":
         # --------------------------------------
         
         # Start chat until not empty input is given
-        msg = get_user_input()
+        msg = get_user_input(chatbot)
+        
+        # Handle exit command
+        if msg == "exit":
+            exit()
         
         # Select mode based on user input
         selected_mode = define_mode_interaction(chatbot, msg)
@@ -44,6 +61,10 @@ if __name__ == "__main__":
         if selected_mode == "geoprocessing":
             print("Entering Geoprocessing Mode...")
             msg_to_interpreter = geoprocess_main(chatbot, msg)
+            
+            # Handle exit command
+            if msg_to_interpreter == "exit":
+                exit()
         
         # -----------------------------------
         # ----- Interpreter Interaction -----
