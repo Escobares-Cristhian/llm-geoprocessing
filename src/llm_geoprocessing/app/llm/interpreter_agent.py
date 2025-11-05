@@ -2,6 +2,7 @@ from typing import Optional
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
+from llm_geoprocessing.app.plugins.gee.gee_client import open_s2_rgb_thumb
 
 def _plugin_instructions() -> str:
     # Information about available data and preprocessing
@@ -28,6 +29,19 @@ def _plugin_instructions() -> str:
 
 def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
     print("Entered Interpreter Mode...")
+    
+    
+    print("\n\nOpening a dummy thumbnail in GEE viewer...\n")
+    # Córdoba city bbox and a simple 2024 window
+    open_s2_rgb_thumb(
+        bbox=(-64.30, -31.52, -64.05, -31.30),
+        start="2024-01-01",
+        end="2024-01-10",
+        mask=True,
+        width=1280
+    )
+    print("\n\nReturning to normal execution...\n")
+
     
     # Prepare interpreter prompt
     interpreter_prompt = "Respond this message from User:"

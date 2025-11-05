@@ -12,3 +12,8 @@ build/
 # Test cache
 .pytest_cache/
 
+secrets/gee-sa.json
+secrets/create_gee-sa_personal.sh
+
+# Avoid files in tmp folder
+tmp/
