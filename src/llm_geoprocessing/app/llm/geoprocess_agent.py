@@ -511,6 +511,10 @@ def geoprocess(json_instructions) -> str:
     """
     from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
+    products = json_instructions.get("products") or []
+    if not isinstance(products, list) or len(products) >= 2:
+        return "Error: 'products' must be a list with zero or one product."
+    
     actions = json_instructions.get("actions") or []
     if not isinstance(actions, list) or not actions:
         return "No geoprocess actions to run."
@@ -523,18 +527,41 @@ def geoprocess(json_instructions) -> str:
         if not name:
             return f"Action #{idx} missing 'geoprocess_name'."
 
+        # Define if product is the if of products, then extract the real product name
+        if len(products) == 1 and params["product"] == products[0].get("id"):
+            params["product"] = products[0].get("name")
+        
+        # Execute action
         try:
             result = execute_action(name, params)
         except Exception as e:
             return f"Error executing '{name}' at step #{idx}: {e}"
 
-        outputs[out_id] = result.get("output_url", "<no url>")
+        # Support single-url and tiled multi-url results
+        urls = None
+        if isinstance(result, dict):
+            if result.get("output_urls"):
+                urls = list(result["output_urls"])
+            elif result.get("output_url"):
+                urls = [result["output_url"]]
+            elif result.get("tif_url"):
+                urls = [result["tif_url"]]
+            elif result.get("url"):
+                urls = [result["url"]]
+
+        outputs[out_id] = urls if urls else ["<no url>"]
 
     # Minimal, focused summary for the interpreter
     lines = ["Geoprocessing completed:"]
-    for k, v in outputs.items():
-        lines.append(f"- {k}: {v}")
+    for k, url_list in outputs.items():
+        if len(url_list) == 1:
+            lines.append(f"- {k}: {url_list[0]}")
+        else:
+            lines.append(f"- {k} (tiles: {len(url_list)}):")
+            for i, u in enumerate(url_list, 1):
+                lines.append(f"  {i:02d}. {u}")
     return "\n".join(lines)
+
 
 # ----------------
 # ----- Main -----

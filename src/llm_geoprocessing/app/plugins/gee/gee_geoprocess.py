@@ -1,3 +1,4 @@
+import math
 from fastapi import FastAPI, HTTPException, Query
 import os, ee, json, math
 from datetime import datetime, timedelta
@@ -90,6 +91,62 @@ def _infer_native_proj(product: str, region: ee.Geometry, sample_band: str, star
     except Exception:
         # Heuristic fallback
         return "EPSG:3857", _guess_default_scale(product)
+
+# ---------- Tiling helpers (client-side, fixed grid) ----------
+def _projected_bbox(region: ee.Geometry, crs: str) -> tuple[float,float,float,float]:
+    # Bounds in target CRS (server-side transform, client fetch min/max)
+    bounds = ee.Geometry(region).transform(crs, 1).bounds(1, crs)
+    coords = bounds.coordinates().get(0).getInfo()
+    xs = [c[0] for c in coords]
+    ys = [c[1] for c in coords]
+    return (min(xs), min(ys), max(xs), max(ys))
+
+def _align_to_grid(minx: float, miny: float, maxx: float, maxy: float, scale: float):
+    # Stable grid origin aligned to pixel edges (north-up: negative scale on Y)
+    origin_x = math.floor(minx / scale) * scale
+    origin_y = math.ceil(maxy / scale) * scale
+    grid_minx = origin_x
+    grid_maxx = math.ceil(maxx / scale) * scale
+    grid_miny = math.floor(miny / scale) * scale
+    grid_maxy = origin_y
+    return origin_x, origin_y, grid_minx, grid_miny, grid_maxx, grid_maxy
+
+def _tile_rects(crs: str, region: ee.Geometry, scale: float, tile_size: int):
+    """Return (tiles, meta) where tiles is a list of ee.Geometry rectangles (proj=crs)."""
+    minx, miny, maxx, maxy = _projected_bbox(region, crs)
+    origin_x, origin_y, gx0, gy0, gx1, gy1 = _align_to_grid(minx, miny, maxx, maxy, scale)
+
+    tile_w = tile_size * scale
+    tile_h = tile_size * scale
+
+    cols = max(int(math.ceil((gx1 - gx0) / tile_w)), 1)
+    rows = max(int(math.ceil((gy1 - gy0) / tile_h)), 1)
+
+    tiles = []
+    region_proj = region.transform(crs, 1)
+    grid_meta = {
+        "crs": crs,
+        "crs_transform": [scale, 0, origin_x, 0, -scale, origin_y],
+        "tile_size_px": tile_size,
+        "rows": rows,
+        "cols": cols,
+        "origin_x": origin_x,
+        "origin_y": origin_y,
+        "tile_w_m": tile_w,
+        "tile_h_m": tile_h,
+    }
+
+    for r in range(rows):
+        y_top = origin_y - r * tile_h
+        y_bot = y_top - tile_h
+        for c in range(cols):
+            x_left = origin_x + c * tile_w
+            x_right = x_left + tile_w
+            rect = ee.Geometry.Rectangle([x_left, y_bot, x_right, y_top], proj=crs, geodesic=False)
+            # clip to the projected region to avoid overfetch
+            tile_geom = rect.intersection(region_proj, 1)
+            tiles.append({"r": r, "c": c, "geom": tile_geom, "bbox_crs": [x_left, y_bot, x_right, y_top]})
+    return tiles, grid_meta
 
 def _safe_download_params(
     *,
@@ -323,3 +380,94 @@ def index_composite_tif(product: str = Query(..., description="GEE collection id
     )
     url = img.getDownloadURL(params)
     return {"tif_url": url}
+
+@app.get("/tif/rgb_composite_tiled")
+def rgb_composite_tiled(product: str = Query(..., description="GEE collection id"),
+                        bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
+                        bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+                        start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+                        end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+                        reducer: str = Query("mean"),
+                        resolution: str = Query("default"),
+                        projection: str = Query("default"),
+                        tile_size: int = Query(2048, description="tile size in pixels (edge)"),
+                        max_tiles: int = Query(400, description="safety cap on total tiles")):
+    _init_ee()
+    region = _parse_bbox(bbox)
+    # end inclusive
+    try:
+        end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
+    img = _rgb_image_composite(product, bands, region, start, end_iso, reducer)
+
+    # Resolve CRS & scale (keep your chosen resolution)
+    if projection == "default" or resolution == "default":
+        first_band = bands.split(",")[0].strip()
+        crs_nat, scale_nat = _infer_native_proj(product, region, first_band, start, end_iso)
+    else:
+        crs_nat, scale_nat = projection, float(resolution)
+
+    print(f"[GEE][rgb_composite_tiled] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+
+    # Common params: fixed grid via crs/crs_transform (no scale/dimensions)
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
+
+    return {"tiling": meta, "tiles": out_tiles}
+
+
+@app.get("/tif/index_composite_tiled")
+def index_composite_tiled(product: str = Query(..., description="GEE collection id"),
+                          band1: str   = Query(..., description="First band for ND numerator"),
+                          band2: str   = Query(..., description="Second band for ND denominator"),
+                          bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+                          start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+                          end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+                          reducer: str = Query("mean"),
+                          resolution: str = Query("default"),
+                          projection: str = Query("default"),
+                          tile_size: int = Query(3072, description="tile size in pixels (edge)"),
+                          max_tiles: int = Query(400, description="safety cap on total tiles")):
+    _init_ee()
+    region = _parse_bbox(bbox)
+    # end inclusive
+    try:
+        end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
+    img = _nd_image_composite(product, band1, band2, region, start, end_iso, reducer)
+
+    if projection == "default" or resolution == "default":
+        crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end_iso)
+    else:
+        crs_nat, scale_nat = projection, float(resolution)
+
+    print(f"[GEE][index_composite_tiled] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
+
+    return {"tiling": meta, "tiles": out_tiles}
