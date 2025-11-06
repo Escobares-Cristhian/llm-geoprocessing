@@ -9,3 +9,6 @@
 
 To get gee-sa.json file to authenticate with Google Earth Engine, execute this script in the terminal:
 `bash secrets/create_gee-sa.sh`
+
+For executing a JSON instruction file, run:
+`docker compose -f docker/compose.dev.yaml run --rm --build maie-dev python -m llm_geoprocessing.app.dev_tests.run_geoprocess_json --file tmp/json_instruction_example.json`

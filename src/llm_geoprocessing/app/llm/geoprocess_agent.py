@@ -502,51 +502,39 @@ def check_and_fix_json(
 # -------------------------------
 
 def geoprocess(json_instructions) -> str:
-    #TODO: DUMMY FUNCTION
-    # return f"Here is the JSON instructions generated, assume this was processed: {json.dumps(json_instructions)}"
+    """
+    Execute the JSON geoprocess instructions without coupling to a specific plugin.
 
-    from llm_geoprocessing.app.plugins.gee.gee_client import open_s2_rgb_thumb
-    
-    # open_s2_rgb_thumb(
-    #     bbox=(-64.30, -31.52, -64.05, -31.30),
-    #     start="2024-01-01",
-    #     end="2024-01-10",
-    #     mask=True,
-    #     width=1280
-    # )
-    
-    #   "actions": [
-    # {
-    #   "geoprocess_name": "open_s2_rgb_thumb",
-    #   "input_json": {
-    #     "bbox": [
-    #       -64.25,
-    #       -31.47,
-    #       -64.12,
-    #       -31.35
-    #     ],
-    #     "start": "2025-01-01",
-    #     "end": "2025-02-01",
-    #     "mask": true,
-    #     "width": 1024
-    #   },
-    #   "output_id": "image_cordoba_capital_thumbnail"
-    # }
+    Strategy:
+    - Use a runtime executor that discovers the active plugin (env var or default GEE HTTP adaptor).
+    - For each action in order, execute and collect output URLs by 'output_id'.
+    """
+    from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
-    if len(json_instructions['actions']) != 1:
-        return "Geoprocessing function currently only supports a single action."
-    
-    if 'open_s2_rgb_thumb' in json_instructions['actions'][0]['geoprocess_name']:
-        out = open_s2_rgb_thumb(
-            bbox=json_instructions['actions'][0]['input_json']['bbox'],
-            start=json_instructions['actions'][0]['input_json']['start'],
-            end=json_instructions['actions'][0]['input_json']['end'],
-            mask=json_instructions['actions'][0]['input_json']['mask'],
-            width=json_instructions['actions'][0]['input_json']['width']
-        )
-        return f"Geoprocessing function 'open_s2_rgb_thumb' executed successfully in: {out}"
-    else:
-        return f"Geoprocessing function '{json_instructions['actions'][0]['geoprocess_name']}' is not implemented yet."
+    actions = json_instructions.get("actions") or []
+    if not isinstance(actions, list) or not actions:
+        return "No geoprocess actions to run."
+
+    outputs = {}
+    for idx, action in enumerate(actions, 1):
+        name = action.get("geoprocess_name")
+        params = action.get("input_json") or {}
+        out_id = action.get("output_id") or f"step_{idx}"
+        if not name:
+            return f"Action #{idx} missing 'geoprocess_name'."
+
+        try:
+            result = execute_action(name, params)
+        except Exception as e:
+            return f"Error executing '{name}' at step #{idx}: {e}"
+
+        outputs[out_id] = result.get("output_url", "<no url>")
+
+    # Minimal, focused summary for the interpreter
+    lines = ["Geoprocessing completed:"]
+    for k, v in outputs.items():
+        lines.append(f"- {k}: {v}")
+    return "\n".join(lines)
 
 # ----------------
 # ----- Main -----

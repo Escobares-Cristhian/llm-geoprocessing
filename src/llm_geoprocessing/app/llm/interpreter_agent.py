@@ -2,7 +2,7 @@ from typing import Optional
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
-from llm_geoprocessing.app.plugins.gee.gee_client import open_s2_rgb_thumb
+# from llm_geoprocessing.app.plugins.gee.gee_client import open_s2_rgb_thumb
 
 def _plugin_instructions() -> str:
     # Information about available data and preprocessing
