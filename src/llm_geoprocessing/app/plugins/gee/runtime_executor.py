@@ -45,13 +45,34 @@ def _gee_endpoint_from_name(name: str) -> str | None:
     base = name[:-4]  # strip '_tif'
     return f"/tif/{base}"
 
+
+def _normalize_params_for_gee(params: Dict[str, Any]) -> Dict[str, Any]:
+    """Make query params robust:
+    - bbox: list/tuple -> "xmin,ymin,xmax,ymax"
+    - bands: list/tuple -> comma-separated
+    - palette: list/tuple -> comma-separated
+    Leave others as-is.
+    """
+    out = dict(params or {})
+    def _csv(v):
+        return ",".join(str(x) for x in v)
+    if "bbox" in out and isinstance(out["bbox"], (list, tuple)):
+        if len(out["bbox"]) != 4:
+            raise ValueError("bbox must have 4 numbers [xmin,ymin,xmax,ymax].")
+        out["bbox"] = _csv(out["bbox"])
+    for k in ("bands", "palette"):
+        if k in out and isinstance(out[k], (list, tuple)):
+            out[k] = _csv(out[k])
+    return out
+
 def _gee_http_execute(name: str, params: Dict[str, Any]) -> Dict[str, Any] | None:
     base_url = os.getenv("GEE_PLUGIN_URL", "http://gee:8000")
     path = _gee_endpoint_from_name(name)
     if not path:
         return None
-    # All params passed as-is; endpoints validate.
-    r = requests.get(base_url + path, params=params, timeout=180)
+    # Normalize certain params for robust encoding
+    q = _normalize_params_for_gee(params)
+    r = requests.get(base_url + path, params=q, timeout=180)
     r.raise_for_status()
     data = r.json()
     # Expect 'tif_url' in current GEE service
