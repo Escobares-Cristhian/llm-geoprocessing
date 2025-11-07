@@ -34,5 +34,6 @@ def get_documentation_preprocessing() -> str:
         "- EPSG:4326: WGS 84 (lat/lon)\n"
         "- EPSG:3857: Web Mercator (Google Maps, OSM)\n"
         "- EPSG:326XX / EPSG:327XX: UTM zones (XX = zone number, 6 for northern hemisphere, 7 for southern hemisphere). Example: EPSG:32606 for UTM zone 6N., EPSG:32733 for UTM zone 33S.\n"
+        "- \"default\": product-native CRS\n"
         "Do not assume availability of any CRS not listed here.\n"
     )
