@@ -6,8 +6,8 @@ from datetime import datetime
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
+from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
-    
 # ---------------------------------
 # ----- JSON Completion Logic -----
 # ---------------------------------
@@ -509,7 +509,6 @@ def geoprocess(json_instructions) -> str:
     - Use a runtime executor that discovers the active plugin (env var or default GEE HTTP adaptor).
     - For each action in order, execute and collect output URLs by 'output_id'.
     """
-    from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
     products = json_instructions.get("products") or []
     if not isinstance(products, list) or len(products) >= 2:

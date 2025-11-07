@@ -38,12 +38,15 @@ def _try_module_executor(name: str, params: Dict[str, Any]) -> Dict[str, Any] | 
     return None
 
 # --- Strategy 2: GEE HTTP microservice by naming convention ---
-# Map geoprocess_name 'rgb_tif' -> GET /tif/rgb, 'index_composite_tif' -> /tif/index_composite
+# Map geoprocess_name 'rgb_single' -> GET /tif/rgb_single, 'index_composite_tif' -> /tif/index_composite
 def _gee_endpoint_from_name(name: str) -> str | None:
-    if not name.endswith("_tif"):
-        return None
-    base = name[:-4]  # strip '_tif'
-    return f"/tif/{base}"
+    if name.endswith("_tif"):
+        base = name[:-4]
+        return f"/tif/{base}"
+    if name.endswith("_tif_tiled"):
+        base = name[:-10]
+        return f"/tif/{base}_tiled"
+    return None
 
 
 def _normalize_params_for_gee(params: Dict[str, Any]) -> Dict[str, Any]:
@@ -75,7 +78,14 @@ def _gee_http_execute(name: str, params: Dict[str, Any]) -> Dict[str, Any] | Non
     r = requests.get(base_url + path, params=q, timeout=180)
     r.raise_for_status()
     data = r.json()
-    # Expect 'tif_url' in current GEE service
+    # Support tiled responses
+    if isinstance(data, dict) and "tiles" in data:
+        urls = [t.get("url") for t in data.get("tiles", []) if t.get("url")]
+        if not urls:
+            raise RuntimeError("GEE executor: tiled response without urls")
+        return {"output_urls": urls, "tiling": data.get("tiling")}
+
+    # Single url
     url = data.get("tif_url") or data.get("url") or data.get("result")
     if not url:
         raise RuntimeError(f"GEE executor: unexpected response keys: {list(data.keys())}")

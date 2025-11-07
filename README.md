@@ -12,3 +12,6 @@ To get gee-sa.json file to authenticate with Google Earth Engine, execute this s
 
 For executing a JSON instruction file, run:
 `docker compose -f docker/compose.dev.yaml run --rm --build maie-dev python -m llm_geoprocessing.app.dev_tests.run_geoprocess_json --file tmp/json_instruction_example.json`
+
+TO get the logs:
+`docker compose -f docker/compose.dev.yaml logs --no-log-prefix gee | tail -n 100`
