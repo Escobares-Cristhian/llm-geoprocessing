@@ -12,6 +12,8 @@ class Chatbot:
         # self.chat = Gemini(model="gemini-2.0-flash-lite", quiet=True) # 200 RPD
         self.chat.config_api()
         self.mem = ChatMemory()
+        
+        self.chat.set_rate_limit(10)  # 10 requests per minute
     
     def check_command(self, msg: str) -> Optional[str]:
         low = msg.strip().lower()

@@ -224,12 +224,17 @@ class LLM(ABC):
         temperature: float = 0.3,
         timeout: float = 60.0,
         max_retries: int = 2,
+        rpm_limit: Optional[int] = None,
     ) -> None:
         self.model = model
         self.temperature = temperature
         self.timeout = timeout
         self.max_retries = max(0, max_retries)
         self._configured = False
+        # in-process per-minute request cap
+        self._rpm_limit: Optional[int] = int(rpm_limit) if rpm_limit is not None else None
+        self._rpm_window: float = 60.0
+        self._rpm_calls: List[float] = []
 
     def config_api(self, **_: Any) -> None:
         raise NotImplementedError
@@ -283,6 +288,7 @@ class LLM(ABC):
         last_exc: Optional[BaseException] = None
         for i in range(attempts):
             try:
+                self._throttle()
                 return fn()
             except KeyboardInterrupt:
                 raise
@@ -292,6 +298,26 @@ class LLM(ABC):
                     break
                 time.sleep(min(2 ** i, 8) + 0.05 * i)
         raise LLMError(f"LLM call failed after {attempts} attempt(s): {last_exc}")
+
+    # ---- Rate limit (per-process, per-minute) -------------------------------
+    def set_rate_limit(self, rpm: Optional[int]) -> None:
+        self._rpm_limit = int(rpm) if rpm is not None else None
+
+    def _throttle(self) -> None:
+        if not self._rpm_limit:
+            return
+        now = time.time()
+        # drop timestamps outside the window
+        while self._rpm_calls and now - self._rpm_calls[0] >= self._rpm_window:
+            self._rpm_calls.pop(0)
+        if len(self._rpm_calls) >= self._rpm_limit:
+            sleep_for = self._rpm_window - (now - self._rpm_calls[0]) + 0.001
+            if sleep_for > 0:
+                time.sleep(sleep_for)
+            now = time.time()
+            while self._rpm_calls and now - self._rpm_calls[0] >= self._rpm_window:
+                self._rpm_calls.pop(0)
+        self._rpm_calls.append(time.time())
 
 
 # ---- OpenAI: ChatGPT --------------------------------------------
