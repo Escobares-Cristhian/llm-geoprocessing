@@ -46,8 +46,9 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     
     interpreter_prompt += f"\nUser Message:\n{msg_from_user}\n"
     interpreter_prompt += (
-        "\nBased on the above information, please provide a suitable response to the user's message."
-        " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode."
+        "\nBased on the above information, please provide a suitable response to the user's message.\n"
+        " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode.\n"
+        " If the geoprocessing return a error, then explain to the user what happened with the technical details, and later suggest possible solutions or alternatives.\n"
         " Respond in the same language as the user's message."
     )
     
