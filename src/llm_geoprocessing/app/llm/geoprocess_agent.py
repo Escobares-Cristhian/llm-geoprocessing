@@ -1,6 +1,6 @@
 import json
 import re
-from typing import Dict, Any, List, Optional
+from typing import Dict, Any, List, Optional, Tuple
 from datetime import datetime
 
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
@@ -110,7 +110,7 @@ def _extract_first_json_block(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def complete_json(chatbot: Chatbot, user_message: str) -> Dict[str, Any] | str:
+def complete_json(chatbot: Chatbot, user_message: str) -> Tuple[Chatbot, Dict[str, Any] | str]:
     """
     Build the target JSON by dialog with the user via the LLM.
     - Input: chatbot instance and single pre-processed message (string).
@@ -183,9 +183,11 @@ STYLE & LENGTH
 - Write in the user's language.
 
 TASK
-Summarize the current chat messages for:
+Summarize the current chat messages and this new message:
 '{user_message}'
-Return ONLY the sections above, nothing else."""
+with the key information needed to build geoprocessing JSON instructions as per this schema:
+'{_schema_instructions()}'
+Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested actions', 'Other/global parameters', 'Constraints & preferences', 'Assumptions explicitly authorized by the user', 'Last JSON instructions generated', and 'Important context'. Nothing else."""
 
     # Clone chatbot to avoid modifying the original
     chat = chatbot.clone(instructions_to_add=summary_instructions)
@@ -199,7 +201,7 @@ Return ONLY the sections above, nothing else."""
         "anywhere in this conversation (system, assistant or user messages) and treat it as the authoritative "
         "baseline ('TRUTH'). Apply ONLY the requested changes, keeping all other fields intact. "
         "Do NOT ask questions about unchanged parts; ask ONLY if the requested change itself is ambiguous.\n\n"
-        f"User message:\n{user_message}\n\n{_schema_instructions()}"
+        f"User message:\n{user_message}\n\nSchema instructions:\n{_schema_instructions()}"
     )
     reply = chat.send_message(prompt)
     wrapper = _extract_first_json_block(reply)
@@ -227,8 +229,7 @@ Return ONLY the sections above, nothing else."""
         )
         q_msg = chat.send_message(q_prompt)
         print(f"{chat.chat.__class__.__name__}: {q_msg}") # show LLM's question to the user
-        # Save in to original chat history
-        chatbot.mem.add_user(user_message)
+        # Save assistant response in to original chat history
         chatbot.mem.add_assistant(q_msg)
 
         # Get user answers
@@ -239,7 +240,7 @@ Return ONLY the sections above, nothing else."""
             # Check for commands
             command = chat.check_command(user_answer)
             if command == "exit":
-                return "exit"
+                return chatbot, "exit"
             elif command == "ask for input":
                 continue  # ask again
             elif command:
@@ -247,6 +248,9 @@ Return ONLY the sections above, nothing else."""
                 continue
             
             valid_user_answer = True
+
+        # Save user answer in to original chat history
+        chatbot.mem.add_user(user_answer)
 
         # Ask LLM to update the JSON with the user's answers
         update_prompt = (
@@ -281,9 +285,9 @@ Return ONLY the sections above, nothing else."""
             print(f"- {q}")
         print("+"*60)
 
-    state = check_and_fix_json(chatbot, state, hierarchy=0, max_hierarchy=10)
+    state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=10)
 
-    return state
+    return chatbot, state
 
 def HandleValueErrorWithLLM(chatbot: Chatbot, state: Dict[str, Any], error_msg: str) -> Dict[str, Any]:
     """
@@ -566,11 +570,11 @@ def geoprocess(json_instructions) -> str:
 # ----- Main -----
 # ----------------
 
-def main(chatbot: Chatbot, msg: str) -> Optional[str]:
+def main(chatbot: Chatbot, msg: str) -> Tuple[Chatbot, str] | str:
     print("Entered Geoprocessing Mode...")
     
     # Build JSON instructions via dialog
-    json_instructions = complete_json(chatbot, msg)
+    chatbot, json_instructions = complete_json(chatbot, msg)
     
     # Handle exit command
     if json_instructions == "exit":
@@ -585,4 +589,4 @@ def main(chatbot: Chatbot, msg: str) -> Optional[str]:
 
     msg_to_interpreter = geoprocess(json_instructions)
     
-    return msg_to_interpreter
+    return chatbot, msg_to_interpreter

@@ -28,7 +28,7 @@ def _plugin_instructions() -> str:
 
 def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
     print("Entered Interpreter Mode...")
-
+    chat = chatbot.clone(instructions_to_add=None)
     
     # Prepare interpreter prompt
     interpreter_prompt = "Respond this message from User:"
@@ -52,13 +52,16 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     )
     
     # Check for commands (only exit command is relevant here)
-    command = chatbot.check_command(interpreter_prompt)
+    command = chat.check_command(interpreter_prompt)
     if command == "exit":
         return "exit"
     
     # Send message to LLM and get response||
-    response = chatbot.send_message(interpreter_prompt)
+    response = chat.send_message(interpreter_prompt)
     print(f"{chatbot.chat.__class__.__name__}: {response}") # show LLM's question to the user
+    
+    # Save assistant response in to original chat history
+    chatbot.mem.add_assistant(response)
     
     return chatbot
 

@@ -37,6 +37,9 @@ if __name__ == "__main__":
         # Handle exit command
         if msg == "exit":
             exit()
+            
+        # Save user message in chat history
+        chatbot.mem.add_user(msg)
         
         # Select mode based on user input
         selected_mode = define_mode_interaction(chatbot, msg)
@@ -60,7 +63,7 @@ if __name__ == "__main__":
         msg_to_interpreter = None
         if selected_mode == "geoprocessing":
             print("Entering Geoprocessing Mode...")
-            msg_to_interpreter = geoprocess_main(chatbot, msg)
+            chatbot, msg_to_interpreter = geoprocess_main(chatbot, msg)
             
             # Handle exit command
             if msg_to_interpreter == "exit":
