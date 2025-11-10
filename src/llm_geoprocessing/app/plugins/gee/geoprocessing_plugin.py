@@ -15,7 +15,7 @@ def get_metadata_geoprocessing() -> str:
         "3) rgb_composite_tif_tiled — Tiled RGB composite (avoids 48 MB/request cap)\n"
         "   Inputs: product, bands, bbox, start, end, reducer, resolution, projection, "
         "   Output: List of GeoTIFF tile URLs + tiling meta (crs, crs_transform, rows, cols).\n"
-        "   Usefulness: large areas at native res without changing analytics; tiles align perfectly "
+        "   Usefulness: large areas at any res without changing analytics; tiles align perfectly "
         "via fixed grid (constant CRS+crs_transform).\n"
         "\n"
         "4) index_composite_tif_tiled — Tiled ND composite\n"
@@ -24,8 +24,8 @@ def get_metadata_geoprocessing() -> str:
         "   Usefulness: large single-band outputs at high resolution.\n"
         "\n\n"
         "Input tips:\n"
-        "- 'resolution=default' uses the product’s native nominal scale; "
-        "'projection=default' uses the product’s native CRS.\n"
+        "- 'resolution=\"default\"' uses the product’s native nominal scale; "
+        "- 'projection=\"default\"' uses the product’s native CRS.\n"
     )
 
 

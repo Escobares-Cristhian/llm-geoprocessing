@@ -17,8 +17,8 @@ def get_documentation_preprocessing() -> str:
     return (
         "Bands by product:\n"
         "• COPERNICUS/S2_SR_HARMONIZED: "
-        "B1(443), B2(490), B3(560), B4(665), B5(705), B6(740), B7(783), "
-        "B8(842), B8A(865), B9(945), B11(1610), B12(2190), QA60.\n"
+        "B1(443nm), B2(490nm), B3(560nm), B4(665nm), B5(705nm), B6(740nm), B7(783nm), "
+        "B8(842nm), B8A(865nm), B9(945nm), B11(1610nm), B12(2190nm), QA60.\n"
         "• LANDSAT/LC08/C02/T1_L2 (L8) & LANDSAT/LC09/C02/T1_L2 (L9): "
         "SR_B1(ultraBlue), SR_B2(Blue), SR_B3(Green), SR_B4(Red), "
         "SR_B5(NIR), SR_B6(SWIR1), SR_B7(SWIR2), ST_B10(thermal), QA_PIXEL, QA_RADSAT.\n"
