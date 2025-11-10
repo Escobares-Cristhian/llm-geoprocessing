@@ -68,6 +68,34 @@ def _normalize_params_for_gee(params: Dict[str, Any]) -> Dict[str, Any]:
             out[k] = _csv(out[k])
     return out
 
+# --- Minimal helper to surface FastAPI `detail` on HTTP errors --------------
+def _raise_for_status_with_detail(r: requests.Response) -> None:
+    if r.ok:
+        return
+    msg = None
+    try:
+        data = r.json()
+        if isinstance(data, dict) and "detail" in data:
+            det = data["detail"]
+            if isinstance(det, str):
+                msg = det
+            elif isinstance(det, list):
+                parts = []
+                for it in det:
+                    if isinstance(it, dict):
+                        parts.append(str(it.get("msg") or it))
+                    else:
+                        parts.append(str(it))
+                msg = "; ".join(p for p in parts if p)
+            else:
+                msg = str(det)
+    except Exception:
+        # non-JSON body or parsing error
+        pass
+    if not msg:
+        msg = (r.text or "").strip() or f"HTTP {r.status_code} {r.reason}"
+    raise RuntimeError(msg)
+
 def _gee_http_execute(name: str, params: Dict[str, Any]) -> Dict[str, Any] | None:
     base_url = os.getenv("GEE_PLUGIN_URL", "http://gee:8000")
     path = _gee_endpoint_from_name(name)
@@ -76,7 +104,7 @@ def _gee_http_execute(name: str, params: Dict[str, Any]) -> Dict[str, Any] | Non
     # Normalize certain params for robust encoding
     q = _normalize_params_for_gee(params)
     r = requests.get(base_url + path, params=q, timeout=180)
-    r.raise_for_status()
+    _raise_for_status_with_detail(r)
     data = r.json()
     # Support tiled responses
     if isinstance(data, dict) and "tiles" in data:

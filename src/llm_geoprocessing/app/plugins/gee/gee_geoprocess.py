@@ -331,6 +331,7 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
 
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
     if len(tiles) > max_tiles:
+        print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     # # Common params: fixed grid via crs (dimensions per tile)
@@ -371,6 +372,7 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
         url = img.getDownloadURL(params)
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
+    print("DONE ALL TILES")
     return {"tiling": meta, "tiles": out_tiles}
     # ----- END: Option 1 ----------------------------------------------------
 
