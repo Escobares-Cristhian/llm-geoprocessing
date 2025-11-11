@@ -17,3 +17,6 @@ secrets/create_gee-sa_personal.sh
 
 # Avoid files in tmp folder
 tmp/
+
+# Avoid files of gee_out folder
+gee_out/
