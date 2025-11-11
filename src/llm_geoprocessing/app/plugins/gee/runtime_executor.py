@@ -46,7 +46,7 @@ def _gee_endpoint_from_name(name: str) -> str | None:
     if name.endswith("_tif_tiled"):
         base = name[:-10]
         return f"/tif/{base}_tiled"
-    return None
+    return f"/tif/{name}"
 
 
 def _normalize_params_for_gee(params: Dict[str, Any]) -> Dict[str, Any]:
