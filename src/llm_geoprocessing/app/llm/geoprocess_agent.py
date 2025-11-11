@@ -7,6 +7,7 @@ import subprocess
 import shutil
 import requests
 import os
+from datetime import datetime
 
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
@@ -582,12 +583,17 @@ def _require_gdal() -> tuple[str, str]:
 def _merge_with_gdal(src_files: list[Path], out_tif: Path) -> Path:
     vb, gt = _require_gdal()
     out_tif.parent.mkdir(parents=True, exist_ok=True)
+
+    # add timestamp to avoid overwrites
+    ts = datetime.now().strftime("timestamp-%Y-%m-%d-%H-%M-%S-%f")
+    out_path = out_tif.with_name(f"{out_tif.stem}_{ts}{out_tif.suffix}")
+
     if len(src_files) == 1:
         # single tile: copy as final result
-        shutil.copy2(src_files[0], out_tif)
-        return out_tif
+        shutil.copy2(src_files[0], out_path)
+        return out_path
 
-    vrt = out_tif.with_suffix(".vrt")
+    vrt = out_path.with_suffix(".vrt")
     # build VRT
     subprocess.run(
         [vb, str(vrt), *[str(p) for p in src_files]],
@@ -595,12 +601,13 @@ def _merge_with_gdal(src_files: list[Path], out_tif: Path) -> Path:
     )
     # translate to GeoTIFF
     subprocess.run(
-        [gt, str(vrt), str(out_tif)],
+        [gt, str(vrt), str(out_path)],
         check=True
     )
     # optional cleanup
     vrt.unlink(missing_ok=True)
-    return out_tif
+    return out_path
+
 # -----------------------------------------------------------------------------
 
 # --- Main geoprocessing function -------------------------------------------------
@@ -623,7 +630,7 @@ def geoprocess(json_instructions) -> str:
         return "No geoprocess actions to run."
 
     _debug_env()
-    _print_tree(OUTPUT_BASE_DIR, depth=2)
+    # _print_tree(OUTPUT_BASE_DIR, depth=2)
 
     outputs = {}
     for idx, action in enumerate(actions, 1):
