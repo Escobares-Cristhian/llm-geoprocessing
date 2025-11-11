@@ -7,8 +7,8 @@ def get_metadata_preprocessing() -> str:
         "- LANDSAT/LC09/C02/T1_L2: Landsat 9 Surface Reflectance\n"
         "- LANDSAT/LE07/C02/T1_L2: Landsat 7 Surface Reflectance\n"
         "- LANDSAT/LT05/C02/T1_L2: Landsat 5 Surface Reflectance\n"
-        "- MODIS/006/MOD09GA: MODIS Terra Surface Reflectance\n"
-        "- MODIS/006/MYD09GA: MODIS Aqua Surface Reflectance\n"
+        "- MODIS/061/MOD09GA: MODIS Terra Surface Reflectance\n"
+        "- MODIS/061/MYD09GA: MODIS Aqua Surface Reflectance\n"
     )
 
 
@@ -26,7 +26,7 @@ def get_documentation_preprocessing() -> str:
         "SR_B1(Blue), SR_B2(Green), SR_B3(Red), SR_B4(NIR), SR_B5(SWIR1), SR_B7(SWIR2), ST_B6, QA_PIXEL, QA_RADSAT.\n"
         "• LANDSAT/LT05/C02/T1_L2 (L5): "
         "SR_B1(Blue), SR_B2(Green), SR_B3(Red), SR_B4(NIR), SR_B5(SWIR1), SR_B7(SWIR2), ST_B6, QA_PIXEL, QA_RADSAT.\n"
-        "• MODIS/006/MOD09GA (Terra) & MODIS/006/MYD09GA (Aqua): "
+        "• MODIS/061/MOD09GA (Terra) & MODIS/061/MYD09GA (Aqua): "
         "sur_refl_b01..b07 (b01 Red, b02 NIR, b03 Blue, b04 Green, b05 NIR2, b06 SWIR1, b07 SWIR2), "
         "plus qa bands. Note: b01–b02 at 250 m; b03–b07 at 500 m."
         "\n\n\n"
