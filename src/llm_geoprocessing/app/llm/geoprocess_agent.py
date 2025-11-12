@@ -622,8 +622,8 @@ def geoprocess(json_instructions) -> str:
     """
 
     products = json_instructions.get("products") or []
-    if not isinstance(products, list) or len(products) >= 2:
-        return "Error: 'products' must be a list with zero or one product."
+    if not isinstance(products, list):
+        return "Error: 'products' must be a list."
     
     actions = json_instructions.get("actions") or []
     if not isinstance(actions, list) or not actions:
@@ -631,6 +631,9 @@ def geoprocess(json_instructions) -> str:
 
     _debug_env()
     # _print_tree(OUTPUT_BASE_DIR, depth=2)
+
+    # Build product mapping from id -> name for easy resolution
+    product_map = {p.get("id"): p.get("name") for p in products if p.get("id") and p.get("name")}
 
     outputs = {}
     for idx, action in enumerate(actions, 1):
@@ -640,9 +643,9 @@ def geoprocess(json_instructions) -> str:
         if not name:
             return f"Action #{idx} missing 'geoprocess_name'."
 
-        # Define if product is the if of products, then extract the real product name
-        if len(products) == 1 and params["product"] == products[0].get("id"):
-            params["product"] = products[0].get("name")
+        # Resolve product id to actual product name
+        if "product" in params and params["product"] in product_map:
+            params["product"] = product_map[params["product"]]
         
         # Execute action
         try:

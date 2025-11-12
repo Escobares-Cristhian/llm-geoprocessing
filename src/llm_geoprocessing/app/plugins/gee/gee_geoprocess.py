@@ -95,6 +95,90 @@ def _infer_native_proj(product: str, region: ee.Geometry, sample_band: str, star
         # Heuristic fallback
         return "EPSG:3857", _guess_default_scale(product)
 
+# ---------- Cloud masking helpers (hardcoded per collection) ----------
+def _has_band(img: ee.Image, name: str) -> ee.ComputedObject:
+    return img.bandNames().contains(name)
+
+def _mask_s2_sr(img: ee.Image) -> ee.Image:
+    # Prefer SCL when present (mask clouds, cirrus, shadows, snow/ice)
+    def _from_scl(i):
+        scl = i.select('SCL')
+        mask = (scl.neq(3)     # Cloud shadows
+                .And(scl.neq(7))  # Unclassified / low prob clouds
+                .And(scl.neq(8))  # Medium prob clouds
+                .And(scl.neq(9))  # High prob clouds
+                .And(scl.neq(10)) # Thin cirrus
+                .And(scl.neq(11)) # Snow / Ice
+               )
+        return i.updateMask(mask)
+    # Fallback to legacy QA60 (bit 10: opaque cloud, bit 11: cirrus)
+    def _from_qa60(i):
+        qa = i.select('QA60')
+        cloud  = qa.bitwiseAnd(1 << 10).eq(0)
+        cirrus = qa.bitwiseAnd(1 << 11).eq(0)
+        return i.updateMask(cloud.And(cirrus))
+    return ee.Image(ee.Algorithms.If(_has_band(img, 'SCL'),
+                                     _from_scl(img),
+                                     ee.Algorithms.If(_has_band(img, 'QA60'), _from_qa60(img), img)))
+
+def _mask_landsat_c2_sr(img: ee.Image) -> ee.Image:
+    # QA_PIXEL bits (C2 L2): 1=dilated cloud, 3=cloud, 4=cloud shadow, 5=snow, 6=clear
+    qa = img.select('QA_PIXEL')
+    not_dilated = qa.bitwiseAnd(1 << 1).eq(0)
+    not_cloud   = qa.bitwiseAnd(1 << 3).eq(0)
+    not_shadow  = qa.bitwiseAnd(1 << 4).eq(0)
+    not_snow    = qa.bitwiseAnd(1 << 5).eq(0)
+    is_clear    = qa.bitwiseAnd(1 << 6).neq(0)
+    mask = not_dilated.And(not_cloud).And(not_shadow).And(not_snow).And(is_clear)
+    return img.updateMask(mask)
+
+# # HARD MASK FOR MODIS
+# def _mask_modis_sr(img: ee.Image) -> ee.Image:
+#     # MOD09GA 'state_1km': 0-1 cloud state (0=clear), 2 cloud shadow (0=no),
+#     # 8-9 cirrus (0=none), 10 internal cloud flag (0=no)
+#     qa = img.select('state_1km')
+#     cloud_state_clear = qa.bitwiseAnd(3).eq(0)                          # bits 0-1
+#     no_shadow         = qa.rightShift(2).bitwiseAnd(1).eq(0)            # bit 2
+#     no_cirrus         = qa.rightShift(8).bitwiseAnd(3).eq(0)            # bits 8-9
+#     no_internal_cloud = qa.rightShift(10).bitwiseAnd(1).eq(0)           # bit 10
+#     mask = cloud_state_clear.And(no_shadow).And(no_cirrus).And(no_internal_cloud)
+#     return img.updateMask(mask)
+
+# SOFT MASK FOR MODIS
+def _mask_modis_sr(img: ee.Image) -> ee.Image:
+    qa = img.select('state_1km')
+
+    # Bits 0–1: 0=clear, 1=cloudy, 2=mixed, 3=unknown
+    cloud_state    = qa.bitwiseAnd(3)
+    not_cloud      = cloud_state.neq(1)            # reject only 'cloudy' (keep mixed/unknown)
+
+    # Bit 2: cloud shadow (1=yes)
+    no_shadow      = qa.rightShift(2).bitwiseAnd(1).eq(0)
+
+    # Bits 8–9: cirrus (0=none, 1=small, 2=average, 3=high)
+    cirrus_level   = qa.rightShift(8).bitwiseAnd(3)
+    accept_cirrus  = cirrus_level.lte(1)           # allow none or small
+
+    # Bit 10: internal cloud flag; skip to avoid overmasking (or require eq(0) only if you want stricter)
+    mask = not_cloud.And(no_shadow).And(accept_cirrus)
+
+    return img.updateMask(mask)
+
+def _apply_cloud_mask_by_product(img: ee.Image, product: str) -> ee.Image:
+    p = (product or '').upper()
+    try:
+        if 'COPERNICUS/S2_SR' in p or 'S2_SR_HARMONIZED' in p:
+            return _mask_s2_sr(img)
+        if 'LANDSAT/' in p and '/C02/' in p and ('_L2' in p or p.endswith('_L2')):
+            return _mask_landsat_c2_sr(img)
+        if 'MODIS/061/MOD09' in p:
+            return _mask_modis_sr(img)
+        # Default: return as-is (e.g., radar, thermal-only, or unknown products)
+        return img
+    except Exception:
+        # Be conservative if any band is missing: don't change the image.
+        return img
+
 # ---------- Tiling helpers (client-side, fixed grid) ----------
 def _projected_bbox(region: ee.Geometry, crs: str) -> tuple[float,float,float,float]:
     # Bounds in target CRS (server-side transform, client fetch min/max)
@@ -218,23 +302,25 @@ def _resolve_reducer(name: str):
     raise HTTPException(status_code=400, detail="Invalid reducer. Use mean|min|max|median|mosaic.")
 
 # --- Core builders ---
-def _collection(product: str, region: ee.Geometry, start: str, end: str) -> ee.ImageCollection:
+def _collection(product: str, region: ee.Geometry, start: str, end: str, cloud_mask: bool=False) -> ee.ImageCollection:
     col = ee.ImageCollection(product).filterBounds(region).filterDate(start, end)
+    if cloud_mask:
+        col = col.map(lambda i: _apply_cloud_mask_by_product(ee.Image(i), product))
     return col
 
-def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str) -> ee.Image:
+def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool=False) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
     start, end = _date_and_next(date)
-    img = _collection(product, region, start, end).mosaic().select(b).clip(region)
+    img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
     return img
 
-def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str) -> ee.Image:
+def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool=False) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
-    col = _collection(product, region, start, end).select(b)
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask).select(b)
     how = _resolve_reducer(reducer)
     if how == "mosaic":
         img = col.mosaic()
@@ -242,14 +328,14 @@ def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, star
         img = getattr(col, how)()
     return img.clip(region)
 
-def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str) -> ee.Image:
+def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str, cloud_mask: bool=False) -> ee.Image:
     start, end = _date_and_next(date)
-    col = _collection(product, region, start, end)
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
     img = col.mosaic().normalizedDifference([b1, b2]).rename("nd").clip(region)
     return img
 
-def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str) -> ee.Image:
-    col = _collection(product, region, start, end)
+def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool=False) -> ee.Image:
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
     col_nd = col.map(lambda im: im.normalizedDifference([b1, b2]).rename("nd"))
     how = _resolve_reducer(reducer)
     if how == "mosaic":
@@ -265,10 +351,11 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
             bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
             date: str    = Query(..., description="YYYY-MM-DD"),
             resolution: str = Query("default"),
-            projection: str = Query("default")):
+            projection: str = Query("default"),
+            apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
-    img = _rgb_image_single(product, bands, region, date)
+    img = _rgb_image_single(product, bands, region, date, cloud_mask=bool(apply_cloud_mask))
 
     # If resolution is default, reproject to product-native CRS/scale to avoid 1-pixel artifacts
     if resolution == "default":
@@ -298,7 +385,8 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
                         resolution: str = Query("default"),
                         projection: str = Query("default"),
                         tile_size: int = Query(1365, description="tile size in pixels (edge)"),
-                        max_tiles: int = Query(25, description="safety cap on total tiles")):
+                        max_tiles: int = Query(25, description="safety cap on total tiles"),
+                        apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
@@ -306,7 +394,7 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
         end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
-    img = _rgb_image_composite(product, bands, region, start, end_iso, reducer)
+    img = _rgb_image_composite(product, bands, region, start, end_iso, reducer, cloud_mask=bool(apply_cloud_mask))
 
     # Resolve CRS & scale (keep your chosen resolution)
     if projection == "default" or resolution == "default":
@@ -333,32 +421,6 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
     if len(tiles) > max_tiles:
         print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
-
-    # # Common params: fixed grid via crs (dimensions per tile)
-    # common = {"format": "GEO_TIFF", "crs": crs_nat}
-
-    # out_tiles = []
-    # for t in tiles:
-    #     params = dict(common)
-    #     # Use the exact tile rectangle so extents align with the fixed grid (avoid irregular polygon bounds).
-    #     params["region"] = ee.Geometry.Rectangle(t["bbox_crs"], proj=crs_nat, geodesic=False)
-
-    #     # Compute exact pixel dimensions for this tile at chosen scale; force a fixed pixel grid per tile.
-    #     w = t['bbox_crs'][2] - t['bbox_crs'][0]
-    #     h = t['bbox_crs'][3] - t['bbox_crs'][1]
-    #     w_px = int(max(round(w / scale_nat), 1))
-    #     h_px = int(max(round(h / scale_nat), 1))
-    #     params["dimensions"] = f"{w_px}x{h_px}"
-
-    #     print(f"Tile r={t['r']} c={t['c']} bbox_crs={t['bbox_crs']}")
-    #     print(f"  -> size: {w_px}x{h_px} px at scale {scale_nat} m/px")
-        
-    #     url = img.getDownloadURL(params)
-    #     out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
-    # print("DONE ALL TILES")
-
-    # return {"tiling": meta, "tiles": out_tiles}
-
 
     # ----- INIT: Option 1 ----------------------------------------------------
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
@@ -406,10 +468,11 @@ def index_tif(product: str = Query(..., description="GEE image or collection id"
               date: str    = Query(..., description="YYYY-MM-DD"),
               palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
               resolution: str = Query("default"),
-              projection: str = Query("default")):
+              projection: str = Query("default"),
+              apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
-    img = _nd_image_single(product, band1, band2, region, date)
+    img = _nd_image_single(product, band1, band2, region, date, cloud_mask=bool(apply_cloud_mask))
 
     if resolution == "default":
         start, end = _date_and_next(date)
@@ -439,7 +502,8 @@ def index_composite_tiled(product: str = Query(..., description="GEE collection 
                           resolution: str = Query("default"),
                           projection: str = Query("default"),
                           tile_size: int = Query(3072, description="tile size in pixels (edge)"),
-                          max_tiles: int = Query(25, description="safety cap on total tiles")):
+                          max_tiles: int = Query(25, description="safety cap on total tiles"),
+                          apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
@@ -447,7 +511,7 @@ def index_composite_tiled(product: str = Query(..., description="GEE collection 
         end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
-    img = _nd_image_composite(product, band1, band2, region, start, end_iso, reducer)
+    img = _nd_image_composite(product, band1, band2, region, start, end_iso, reducer, cloud_mask=bool(apply_cloud_mask))
 
     if projection == "default" or resolution == "default":
         crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end_iso)
@@ -498,6 +562,3 @@ def index_composite_tiled(product: str = Query(..., description="GEE collection 
 
     # return {"tiling": meta, "tiles": out_tiles}
     # # ----- END: Option 2 ----------------------------------------------------
-
-
-
