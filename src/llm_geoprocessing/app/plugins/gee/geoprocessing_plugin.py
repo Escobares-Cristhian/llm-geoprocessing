@@ -1,5 +1,6 @@
 def get_metadata_geoprocessing() -> str:
     return (
+        "---------- INIT of METADATA of GEOPROCESSING ----------\n"
         "Available GEE geoprocesses (inputs → output → usefulness):\n"
         "\n"
         "1) rgb_single — Single-date RGB GeoTIFF\n"
@@ -27,15 +28,18 @@ def get_metadata_geoprocessing() -> str:
         "- 'resolution=\"default\"' uses the product’s native nominal scale; "
         "- 'projection=\"default\"' uses the product’s native CRS.\n"
         "- 'apply_cloud_mask=true' applies basic cloud masking per product; 'false' uses raw data.\n"
+        "---------- END of METADATA of GEOPROCESSING ----------\n"
     )
 
 
 def get_documentation_geoprocessing() -> str:
     # When to use each geoprocess (short and focused).
     return (
+        "---------- INIT of DOCUMENTATION of GEOPROCESSING ----------\n"
         "When to use each geoprocess:\n"
         "- rgb_single: single-day quicklook/export over small–medium areas at specific date.\n"
         "- index_tif: single-day ND (e.g., NDVI/NDWI) over small–medium areas.\n"
         "- rgb_composite_tif_tiled: multi-date RGB (mean/median/min/max/mosaic) to reduce clouds.\n"
         "- index_composite_tif_tiled:  multi-date ND composites (e.g., seasonal NDVI).\n"
+        "---------- END of DOCUMENTATION of GEOPROCESSING ----------\n"
     )

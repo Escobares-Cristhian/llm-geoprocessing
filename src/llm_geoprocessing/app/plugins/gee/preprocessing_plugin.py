@@ -1,6 +1,7 @@
 def get_metadata_preprocessing() -> str:
     # Only GEE dataset IDs (satellites/products) supported by this plugin.
     return (
+        "---------- INIT of METADATA of DATA & PREPROCESSING ----------\n"
         "GEE products:\n"
         "- COPERNICUS/S2_SR_HARMONIZED: Sentinel-2 Surface Reflectance\n"
         "- LANDSAT/LC08/C02/T1_L2: Landsat 8 Surface Reflectance\n"
@@ -9,12 +10,14 @@ def get_metadata_preprocessing() -> str:
         "- LANDSAT/LT05/C02/T1_L2: Landsat 5 Surface Reflectance\n"
         "- MODIS/061/MOD09GA: MODIS Terra Surface Reflectance\n"
         "- MODIS/061/MYD09GA: MODIS Aqua Surface Reflectance\n"
+        "---------- END of METADATA of DATA & PREPROCESSING ----------\n"
     )
 
 
 def get_documentation_preprocessing() -> str:
     # Bands available per product (short, focused). Use exact GEE band names.
     return (
+        "---------- INIT of DOCUMENTATION of DATA & PREPROCESSING ----------\n"
         "Bands by product:\n"
         "• COPERNICUS/S2_SR_HARMONIZED: "
         "B1(443nm), B2(490nm), B3(560nm), B4(665nm), B5(705nm), B6(740nm), B7(783nm), "
@@ -36,4 +39,33 @@ def get_documentation_preprocessing() -> str:
         "- EPSG:326XX / EPSG:327XX: UTM zones (XX = zone number, 6 for northern hemisphere, 7 for southern hemisphere). Example: EPSG:32606 for UTM zone 6N., EPSG:32733 for UTM zone 33S.\n"
         "- \"default\": product-native CRS. Do not put \"native\" or similar, only \"default\" is accepted.\n"
         "Do not assume availability of any CRS not listed here.\n"
+        "\n\n\n"
+        "Dump information for common indexes for each product:\n"
+        "- NDVI (Normalized Difference Vegetation Index): (NIR - Red) / (NIR + Red)\n"
+        "  • COPERNICUS/S2_SR_HARMONIZED: (B8A - B4) / (B8A + B4)\n"
+        "  • LANDSAT/LC08/C02/T1_L2 & LANDSAT/LC09/C02/T1_L2: (SR_B5 - SR_B4) / (SR_B5 + SR_B4)\n"
+        "  • LANDSAT/LE07/C02/T1_L2: (SR_B4 - SR_B3) / (SR_B4 + SR_B3)\n"
+        "  • LANDSAT/LT05/C02/T1_L2: (SR_B4 - SR_B3) / (SR_B4 + SR_B3)\n"
+        "  • MODIS/061/MOD09GA & MODIS/061/MYD09GA: (sur_refl_b02 - sur_refl_b01) / (sur_refl_b02 + sur_refl_b01)\n"
+        "- NDWI (Normalized Difference Water Index): (Green - NIR) / (Green + NIR)\n"
+        "  • COPERNICUS/S2_SR_HARMONIZED: (B3 - B8A) / (B3 + B8A)\n"
+        "  • LANDSAT/LC08/C02/T1_L2 & LANDSAT/LC09/C02/T1_L2: (SR_B3 - SR_B5) / (SR_B3 + SR_B5)\n"
+        "  • LANDSAT/LE07/C02/T1_L2: (SR_B2 - SR_B4) / (SR_B2 + SR_B4)\n"
+        "  • LANDSAT/LT05/C02/T1_L2: (SR_B2 - SR_B4) / (SR_B2 + SR_B4)\n"
+        "  • MODIS/061/MOD09GA & MODIS/061/MYD09GA: (sur_refl_b04 - sur_refl_b02) / (sur_refl_b04 + sur_refl_b02)\n"
+        "- NBR (Normalized Burn Ratio): (NIR - SWIR2) / (NIR + SWIR2)\n"
+        "  • COPERNICUS/S2_SR_HARMONIZED: (B8A - B12) / (B8A + B12)\n"
+        "  • LANDSAT/LC08/C02/T1_L2 & LANDSAT/LC09/C02/T1_L2: (SR_B5 - SR_B7) / (SR_B5 + SR_B7)\n"
+        "  • LANDSAT/LE07/C02/T1_L2: (SR_B4 - SR_B7) / (SR_B4 + SR_B7)\n"
+        "  • LANDSAT/LT05/C02/T1_L2: (SR_B4 - SR_B7) / (SR_B4 + SR_B7)\n"
+        "  • MODIS/061/MOD09GA & MODIS/061/MYD09GA: (sur_refl_b02 - sur_refl_b07) / (sur_refl_b02 + sur_refl_b07)\n"
+        "- NDBI (Normalized Difference Built-up Index): (SWIR1 - NIR) / (SWIR1 + NIR)\n"
+        "  • COPERNICUS/S2_SR_HARMONIZED: (B11 - B8A) / (B11 + B8A)\n"
+        "  • LANDSAT/LC08/C02/T1_L2 & LANDSAT/LC09/C02/T1_L2: (SR_B6 - SR_B5) / (SR_B6 + SR_B5)\n"
+        "  • LANDSAT/LE07/C02/T1_L2: (SR_B5 - SR_B4) / (SR_B5 + SR_B4)\n"
+        "  • LANDSAT/LT05/C02/T1_L2: (SR_B5 - SR_B4) / (SR_B5 + SR_B4)\n"
+        "  • MODIS/061/MOD09GA & MODIS/061/MYD09GA: (sur_refl_b06 - sur_refl_b02) / (sur_refl_b06 + sur_refl_b02)\n"
+        "- Not mentioned indexes can be calculated from your knowledge of band combinations for the used product.\n"
+        "- Indexes from not mentioned product can be calculated from your knowledge of band combinations for the used product.\n"
+        "---------- END of DOCUMENTATION of DATA & PREPROCESSING ----------\n"
     )
