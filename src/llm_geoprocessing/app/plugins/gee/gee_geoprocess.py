@@ -328,21 +328,84 @@ def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, star
         img = getattr(col, how)()
     return img.clip(region)
 
+# --- scale+offset helpers ---
+def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, float]:
+    """
+    Try to read per-band scale/offset from metadata (various common keys).
+    If absent (which is the case for Landsat C2 L2 and S2 SR in GEE), fall back by product family.
+    """
+    s, o = None, None
+    try:
+        info = img.select([band]).getInfo()  # one client-side hit
+        bmeta = (info.get('bands', [{}])[0] or {})
+        props = (bmeta.get('properties') or {})
+        # Do NOT default here — we need to detect absence.
+        for k in ('scale', 'SCALE', 'scale_factor', 'SCALE_FACTOR'):
+            if props.get(k) is not None:
+                s = float(props.get(k)); break
+        for k in ('offset', 'OFFSET', 'add_offset', 'ADD_OFFSET'):
+            if props.get(k) is not None:
+                o = float(props.get(k)); break
+    except Exception:
+        pass
+
+    if s is None or o is None:
+        # No usable per-band metadata: choose by asset id / product id.
+        # (GEE doesn't expose these for LANDSAT C2 L2 or S2 SR.)
+        try:
+            asset_id = (img.get('system:asset_id') or img.get('system:id')).getInfo()
+        except Exception:
+            asset_id = ''
+        pid = ((product or '') + '|' + (asset_id or '')).upper()
+
+        # Landsat Collection 2 Level-2 (optical SR / thermal ST)
+        if ('LANDSAT/LC08/C02/T1_L2' in pid) or ('LANDSAT/LC09/C02/T1_L2' in pid):
+            if band.startswith('SR_B'):
+                s, o = 2.75e-5, -0.2
+            elif band.startswith('ST_B'):
+                s, o = 0.00341802, 149.0
+
+        # Sentinel-2 SR (harmonized or not) — reflectance is scale 1e-4, no offset
+        elif 'COPERNICUS/S2_SR' in pid:
+            s, o = 1e-4, 0.0
+
+        # Final fallback
+        if s is None: s = 1.0
+        if o is None: o = 0.0
+
+    print(f"[GEE][_band_scale_offset] product~='{product}', band={band}, scale={s}, offset={o}")
+    return s, o
+
+# --- ND helpers (scale+offset) ---
+def _scaled_nd(img: ee.Image, b1: str, b2: str, s1: float, o1: float, s2: float, o2: float) -> ee.Image:
+    return img.expression(
+        '((b1*s1 + o1) - (b2*s2 + o2)) / ((b1*s1 + o1) + (b2*s2 + o2))',
+        {'b1': img.select(b1), 'b2': img.select(b2),
+         's1': ee.Number(s1),  'o1': ee.Number(o1),
+         's2': ee.Number(s2),  'o2': ee.Number(o2)}
+    ).rename('nd')
+
+# --- ND image builders ---
 def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str, cloud_mask: bool=False) -> ee.Image:
     start, end = _date_and_next(date)
-    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
-    img = col.mosaic().normalizedDifference([b1, b2]).rename("nd").clip(region)
-    return img
+    col  = _collection(product, region, start, end, cloud_mask=cloud_mask)
+    first = ee.Image(col.first())
+    s1, o1 = _band_scale_offset(first, b1, product)
+    s2, o2 = _band_scale_offset(first, b2, product)
+    img_raw = col.mosaic()
+    img_nd  = _scaled_nd(img_raw, b1, b2, s1, o1, s2, o2)
+    return img_nd.clip(region)
 
 def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool=False) -> ee.Image:
-    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
-    col_nd = col.map(lambda im: im.normalizedDifference([b1, b2]).rename("nd"))
+    col   = _collection(product, region, start, end, cloud_mask=cloud_mask)
+    first = ee.Image(col.first())
+    s1, o1 = _band_scale_offset(first, b1, product)
+    s2, o2 = _band_scale_offset(first, b2, product)
+    col_nd = col.map(lambda im: _scaled_nd(ee.Image(im), b1, b2, s1, o1, s2, o2))
     how = _resolve_reducer(reducer)
-    if how == "mosaic":
-        img = col_nd.mosaic()
-    else:
-        img = getattr(col_nd, how)()
+    img = col_nd.mosaic() if how == "mosaic" else getattr(col_nd, how)()
     return img.clip(region)
+
 
 # --- Endpoints (return a signed URL for GeoTIFF download) ---
 @app.get("/tif/rgb_single")
