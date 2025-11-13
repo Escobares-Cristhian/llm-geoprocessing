@@ -33,6 +33,13 @@ class Chatbot:
     def clone(self, instructions_to_add: Optional[str] = None):
         """Create a clone of the chatbot with independent memory copy."""
         cloned = Chatbot()
+
+        # *** share the same LLM client so RPM limit is global across clones ***
+        cloned.chat = self.chat
+
+        # fresh memory for the clone
+        cloned.mem = ChatMemory()
+
         # Copy all messages from the original to the clone
         for msg in self.mem.messages():
             cloned.mem.add(msg["role"], msg["content"])
