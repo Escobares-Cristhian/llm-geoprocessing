@@ -566,6 +566,7 @@ def _download_tiles(urls: list[str], tiles_dir: Path, stem: str) -> list[Path]:
         # always write .tif — GEE endpoints here return GeoTIFF for /tif/* routes
         p = tiles_dir / f"{stem}_tile_{i:02d}.tif"
         _download_file(u, p)
+        _maybe_fix_modis_sinusoidal_srs(p)
         out_paths.append(p)
     return out_paths
 
@@ -579,6 +580,44 @@ def _require_gdal() -> tuple[str, str]:
             "GDAL not found. Install gdal (gdalbuildvrt, gdal_translate) in PATH."
         )
     return vb, gt
+
+def _maybe_fix_modis_sinusoidal_srs(tif: Path) -> None:
+    """
+    If the tile uses MODIS Sinusoidal, reset the SRS to use the MODIS sphere.
+    This avoids the small offset caused by WGS84 ellipsoid in the WKT.
+    """
+    try:
+        gdal_edit = shutil.which("gdal_edit.py")
+        gdalinfo  = shutil.which("gdalinfo")
+        if not gdal_edit or not gdalinfo:
+            return
+
+        # Inspect projection; only touch MODIS Sinusoidal rasters
+        proc = subprocess.run(
+            [gdalinfo, "-json", str(tif)],
+            stdout=subprocess.PIPE,
+            stderr=subprocess.PIPE,
+            text=True,
+            check=True,
+            timeout=30,
+        )
+        info = proc.stdout or ""
+        if "MODIS Sinusoidal" not in info and "Sinusoidal" not in info:
+            return
+
+        # Apply MODIS sphere sinusoidal definition
+        subprocess.run(
+            [
+                gdal_edit,
+                "-a_srs",
+                "+proj=sinu +R=6371007.181 +nadgrids=@null +wktext",
+                str(tif),
+            ],
+            check=True,
+        )
+        print(f"[DEBUG] fixed MODIS sinusoidal SRS for {tif}")
+    except Exception as e:
+        print(f"[DEBUG] MODIS SRS fix skipped for {tif}: {e}")
 
 def _merge_with_gdal(src_files: list[Path], out_tif: Path) -> Path:
     vb, gt = _require_gdal()

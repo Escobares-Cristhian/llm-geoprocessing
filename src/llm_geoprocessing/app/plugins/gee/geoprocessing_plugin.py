@@ -25,11 +25,13 @@ def get_metadata_geoprocessing() -> str:
         "   Usefulness: large single-band outputs at high resolution.\n"
         "\n\n"
         "Input tips:\n"
+        "- 'product' must be unique, a single product a a time, string variable.\n"
         "- 'resolution=\"default\"' uses the product’s native nominal scale or \"float\" meters (no not put units, only number, e.g., 10).\n"
         "- 'projection=\"default\"' uses the product’s native CRS or \"string\" EPSG code.\n"
         "- 'apply_cloud_mask=true' applies basic cloud masking per product; 'false' uses raw data.\n"
         "- If resolution is explicitly in meters, UTM projections are preferred for best results (choose zone accordingly).\n"
         "- If resolution is explicitly in degrees, EPSG:4326 is preferred.\n"
+        "- If projection is explicitly mentioned, but resolution is in other units, estimate best matching resolution in the target CRS units.\n"
         "---------- END of METADATA of GEOPROCESSING ----------\n"
     )
 

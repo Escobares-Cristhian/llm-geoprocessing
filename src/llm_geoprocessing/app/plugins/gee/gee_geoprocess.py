@@ -92,8 +92,9 @@ def _infer_native_proj(product: str, region: ee.Geometry, sample_band: str, star
         scale = float(proj.nominalScale().getInfo())
         return crs, scale
     except Exception:
-        # Heuristic fallback
-        return "EPSG:3857", _guess_default_scale(product)
+        # # Heuristic fallback
+        # return "EPSG:3857", _guess_default_scale(product)
+        raise HTTPException(status_code=400, detail="Could not infer native projection and scale for the given product and parameters.")
 
 # ---------- Cloud masking helpers (hardcoded per collection) ----------
 def _has_band(img: ee.Image, name: str) -> ee.ComputedObject:
@@ -447,7 +448,7 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
                         reducer: str = Query("mean"),
                         resolution: str = Query("default"),
                         projection: str = Query("default"),
-                        tile_size: int = Query(1365, description="tile size in pixels (edge)"),
+                        tile_size: int = Query(1360, description="tile size in pixels (edge)"),
                         max_tiles: int = Query(25, description="safety cap on total tiles"),
                         apply_cloud_mask: bool = Query(False)):
     _init_ee()
@@ -578,8 +579,10 @@ def index_composite_tiled(product: str = Query(..., description="GEE collection 
 
     if projection == "default" or resolution == "default":
         crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end_iso)
+        print(f"[GEE][index_tif] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
     else:
         crs_nat, scale_nat = projection, float(resolution)
+        print(f"[GEE][index_tif] Using custom resolution -> crs={crs_nat}, scale_m={scale_nat}")
 
     print(f"[GEE][index_composite_tiled] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
