@@ -19,9 +19,9 @@ class Chatbot:
         self.mem.add_system(self._add_system_info())
     
     def _add_system_info(self):
-        system_info = (
-            "Today's date is " + os.popen("date '+%Y-%m-%d' hour '%H:%M:%S'").read().strip() + ".\n"
-        )
+        system_info = "Today's date is " + os.popen(
+            "date '+YYYY-MM-DD = %Y-%m-%d at HH:MM:SS = %H:%M:%S'"
+            ).read().strip() + ".\n"
         return system_info
     
     def check_command(self, msg: str) -> Optional[str]:
