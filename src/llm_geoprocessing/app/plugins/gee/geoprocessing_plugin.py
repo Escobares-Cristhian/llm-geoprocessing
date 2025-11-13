@@ -5,7 +5,7 @@ def get_metadata_geoprocessing() -> str:
         "\n"
         "1) rgb_single — Single-date RGB GeoTIFF\n"
         "   Inputs: product, bands='R,G,B', bbox='xmin,ymin,xmax,ymax', date, "
-        "resolution (meters or 'default'), projection (CRS or 'default'), apply_cloud_mask (true/false).\n"
+        "resolution, projection, apply_cloud_mask (true/false).\n"
         "   Output: GeoTIFF (3 bands). Usefulness: quick visual/export at chosen res/CRS.\n"
         "\n"
         "2) index_tif — Single-date normalized difference GeoTIFF\n"
@@ -25,9 +25,11 @@ def get_metadata_geoprocessing() -> str:
         "   Usefulness: large single-band outputs at high resolution.\n"
         "\n\n"
         "Input tips:\n"
-        "- 'resolution=\"default\"' uses the product’s native nominal scale; "
-        "- 'projection=\"default\"' uses the product’s native CRS.\n"
+        "- 'resolution=\"default\"' uses the product’s native nominal scale or \"float\" meters (no not put units, only number, e.g., 10).\n"
+        "- 'projection=\"default\"' uses the product’s native CRS or \"string\" EPSG code.\n"
         "- 'apply_cloud_mask=true' applies basic cloud masking per product; 'false' uses raw data.\n"
+        "- If resolution is explicitly in meters, UTM projections are preferred for best results (choose zone accordingly).\n"
+        "- If resolution is explicitly in degrees, EPSG:4326 is preferred.\n"
         "---------- END of METADATA of GEOPROCESSING ----------\n"
     )
 
