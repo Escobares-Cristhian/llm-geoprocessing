@@ -14,6 +14,15 @@ class Chatbot:
         self.mem = ChatMemory()
         
         self.chat.set_rate_limit(10)  # 10 requests per minute
+        
+        # Add general information to system
+        self.mem.add_system(self._add_system_info())
+    
+    def _add_system_info(self):
+        system_info = (
+            "Today's date is " + os.popen("date '+%Y-%m-%d' hour '%H:%M:%S'").read().strip() + ".\n"
+        )
+        return system_info
     
     def check_command(self, msg: str) -> Optional[str]:
         low = msg.strip().lower()
@@ -57,6 +66,9 @@ class Chatbot:
 
         # Elimino memoria
         cloned.mem.clear()
+        
+        # Add general information to system
+        cloned.mem.add_system(cloned._add_system_info())
         
         # Agrego resumen a la memoria
         cloned.mem.add_system(resumen)
