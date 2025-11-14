@@ -31,18 +31,25 @@ if __name__ == "__main__":
         # ----- Mode Selection Interaction -----
         # --------------------------------------
         
-        # Start chat until not empty input is given
-        msg = get_user_input(chatbot)
-        
-        # Handle exit command
-        if msg == "exit":
-            exit()
+        while True:
+            # Start chat until not empty input is given
+            msg = get_user_input(chatbot)
             
-        # Save user message in chat history
-        chatbot.mem.add_user(msg)
-        
-        # Select mode based on user input
-        selected_mode = define_mode_interaction(chatbot, msg)
+            # Handle exit command
+            if msg == "exit":
+                exit()
+                
+            # Save user message in chat history
+            chatbot.mem.add_user(msg)
+            
+            # Select mode based on user input
+            selected_mode = define_mode_interaction(chatbot, msg)
+            
+            if selected_mode == "ask for input":
+                continue  # ask again for input
+            
+            # If selected mode is valid, exit loop and execute it
+            break
         
         # Handle exit command
         if selected_mode == "exit":

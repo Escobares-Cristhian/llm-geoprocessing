@@ -85,19 +85,34 @@ def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Option
 
 
 def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
-    modes = ["Geoproceso", "Consulta o Interpretación de Datos", "Consulta no geoespacial"]
+    modes = ["Geoproceso", "Consulta de Capacidades","Consulta o Interpretación de Datos", "Consulta no geoespacial"]
 
     modes_explained = {
-        "Geoproceso": "Cuando el usuario pide o necesita realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, cálculo de estadísticas, etc. También cuando el usuario solicita cambios en geoprocesos previamente realizados. Además, si el usuario pregunta por las capacidades o algo similar a '¿Qué puedes hacer?' ó '¿Qué datos tienes?', se asume que quiere realizar un geoproceso y se selecciona este modo.",
+        "Geoproceso": "Cuando el usuario pide o necesita realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, cálculo de estadísticas, etc. También cuando el usuario solicita cambios en geoprocesos previamente realizados.",
+        "Consulta de Capacidades": "Cuando el usuario pregunta por las capacidades y/o datos disponibles. Ejemplos: '¿Qué puedes hacer?' ó '¿Qué datos tienes?'.",
         "Consulta o Interpretación de Datos": "Responder preguntas relacionadas con datos geográficos, interpretar información espacial, proporcionar explicaciones sobre conceptos geográficos, etc. Pero sin realizar operaciones de geoprocesamiento o cálculos.",
         "Consulta no geoespacial": "Responder preguntas generales que no estén relacionadas con datos geográficos o espaciales."
     }
     
     selected_mode = define_mode(chatbot, msg, modes, modes_explained)
     
+    # If "Consulta de Capacidades", summarize the _plugin_instructions regarding user's message
+    if selected_mode == "Consulta de Capacidades":
+        summary_prompt = (
+            "Summarize the available geoprocessing capabilities and data relevant to the user's message below, "
+            "in a concise manner suitable for responding to the user's query about your capabilities and data.\n\n"
+            "Dump of Geoprocessing and Data Capabilities (both metadata and documentation for each):\n"
+            f"{_plugin_instructions()}\n\n"
+            f"User Message: {msg}\n\n"
+            "Summary:"
+        )
+        summary = chatbot.clone().send_message(summary_prompt)
+        print(f"{chatbot.chat.__class__.__name__}: {summary}") # show LLM's question to the user
+    
     mode_to_workflow = {
         "exit": "exit",
         "Geoproceso": "geoprocessing",
+        "Consulta de Capacidades": "ask for input",
         "Consulta o Interpretación de Datos": "interpreter",
         "Consulta no geoespacial": "interpreter"
     }
