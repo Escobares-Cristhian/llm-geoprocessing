@@ -38,14 +38,8 @@ def _try_module_executor(name: str, params: Dict[str, Any]) -> Dict[str, Any] | 
     return None
 
 # --- Strategy 2: GEE HTTP microservice by naming convention ---
-# Map geoprocess_name 'rgb_single' -> GET /tif/rgb_single, 'index_composite_tif' -> /tif/index_composite
+# Deprecated: usefull for debugging only, now the endpoints have the same name as geoprocesses.
 def _gee_endpoint_from_name(name: str) -> str | None:
-    if name.endswith("_tif"):
-        base = name[:-4]
-        return f"/tif/{base}"
-    if name.endswith("_tif_tiled"):
-        base = name[:-10]
-        return f"/tif/{base}_tiled"
     return f"/tif/{name}"
 
 

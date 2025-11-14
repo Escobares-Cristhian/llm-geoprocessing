@@ -439,8 +439,8 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
     url = img.getDownloadURL(params)
     return {"tif_url": url}
 
-@app.get("/tif/rgb_composite_tiled")
-def rgb_composite_tiled(product: str = Query(..., description="GEE collection id"),
+@app.get("/tif/rgb_composite")
+def rgb_composite(product: str = Query(..., description="GEE collection id"),
                         bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
                         bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
                         start: str   = Query(..., description="YYYY-MM-DD inclusive"),
@@ -478,7 +478,7 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
     else:
         crs_nat, scale_nat = projection, float(resolution)
 
-    print(f"[GEE][rgb_composite_tiled] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    print(f"[GEE][rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
@@ -524,8 +524,8 @@ def rgb_composite_tiled(product: str = Query(..., description="GEE collection id
     # return {"tiling": meta, "tiles": out_tiles}
     # # ----- END: Option 2 ----------------------------------------------------
 
-@app.get("/tif/index")
-def index_tif(product: str = Query(..., description="GEE image or collection id"),
+@app.get("/tif/index_single")
+def index_single(product: str = Query(..., description="GEE image or collection id"),
               band1: str   = Query(..., description="First band for ND numerator"),
               band2: str   = Query(..., description="Second band for ND denominator"),
               bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
@@ -541,7 +541,7 @@ def index_tif(product: str = Query(..., description="GEE image or collection id"
     if resolution == "default":
         start, end = _date_and_next(date)
         crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end)
-        print(f"[GEE][index_tif] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
+        print(f"[GEE][index_single] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
         img = img.reproject(crs=crs_nat, scale=scale_nat)
         default_scale = scale_nat
     else:
@@ -555,8 +555,8 @@ def index_tif(product: str = Query(..., description="GEE image or collection id"
     return {"tif_url": url}
 
 
-@app.get("/tif/index_composite_tiled")
-def index_composite_tiled(product: str = Query(..., description="GEE collection id"),
+@app.get("/tif/index_composite")
+def index_composite(product: str = Query(..., description="GEE collection id"),
                           band1: str   = Query(..., description="First band for ND numerator"),
                           band2: str   = Query(..., description="Second band for ND denominator"),
                           bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
@@ -579,12 +579,12 @@ def index_composite_tiled(product: str = Query(..., description="GEE collection 
 
     if projection == "default" or resolution == "default":
         crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end_iso)
-        print(f"[GEE][index_tif] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
+        print(f"[GEE][index_single] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
     else:
         crs_nat, scale_nat = projection, float(resolution)
-        print(f"[GEE][index_tif] Using custom resolution -> crs={crs_nat}, scale_m={scale_nat}")
+        print(f"[GEE][index_single] Using custom resolution -> crs={crs_nat}, scale_m={scale_nat}")
 
-    print(f"[GEE][index_composite_tiled] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    print(f"[GEE][index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
