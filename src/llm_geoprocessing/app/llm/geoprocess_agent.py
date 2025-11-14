@@ -561,10 +561,14 @@ def _download_file(url: str, dest: Path, timeout: int = 300) -> Path:
 
 def _download_tiles(urls: list[str], tiles_dir: Path, stem: str) -> list[Path]:
     _clean_dir(tiles_dir)  # avoid mixing old tiles
+
+    # add timestamp so each run gets unique tile filenames
+    ts = datetime.now().strftime("timestamp-%Y-%m-%d-%H-%M-%S-%f")
+
     out_paths: list[Path] = []
     for i, u in enumerate(urls, 1):
         # always write .tif — GEE endpoints here return GeoTIFF for /tif/* routes
-        p = tiles_dir / f"{stem}_tile_{i:02d}.tif"
+        p = tiles_dir / f"{stem}_{ts}_tile_{i:02d}.tif"
         _download_file(u, p)
         _maybe_fix_modis_sinusoidal_srs(p)
         out_paths.append(p)
