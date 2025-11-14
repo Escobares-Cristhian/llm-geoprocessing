@@ -88,7 +88,7 @@ def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
     modes = ["Geoproceso", "Consulta o Interpretación de Datos", "Consulta no geoespacial"]
 
     modes_explained = {
-        "Geoproceso": "Cuando el usuario pide o necesita realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, cálculo de estadísticas, etc.",
+        "Geoproceso": "Cuando el usuario pide o necesita realizar operaciones de geoprocesamiento como análisis espacial, manipulación de datos geográficos, generación de mapas, cálculo de estadísticas, etc. También cuando el usuario solicita cambios en geoprocesos previamente realizados. Además, si el usuario pregunta por las capacidades o algo similar a '¿Qué puedes hacer?' ó '¿Qué datos tienes?', se asume que quiere realizar un geoproceso y se selecciona este modo.",
         "Consulta o Interpretación de Datos": "Responder preguntas relacionadas con datos geográficos, interpretar información espacial, proporcionar explicaciones sobre conceptos geográficos, etc. Pero sin realizar operaciones de geoprocesamiento o cálculos.",
         "Consulta no geoespacial": "Responder preguntas generales que no estén relacionadas con datos geográficos o espaciales."
     }
