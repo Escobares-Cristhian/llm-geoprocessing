@@ -281,7 +281,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             print(f"- {q}")
         print("+"*60)
 
-    state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=10)
+    state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=5, max_hierarchy_per_error=1)
 
     return chatbot, state
 
