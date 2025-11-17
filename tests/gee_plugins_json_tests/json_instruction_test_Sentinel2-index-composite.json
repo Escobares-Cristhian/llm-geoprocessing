@@ -1,0 +1,38 @@
+{
+  "products": [
+    {
+      "id": "A",
+      "name": "COPERNICUS/S2_SR_HARMONIZED",
+      "date": {
+        "initial_date": "2025-10-01",
+        "end_date": "2025-10-31"
+      },
+      "proj": "EPSG:32720",
+      "res": 10
+    }
+  ],
+  "actions": [
+    {
+      "geoprocess_name": "index_composite",
+      "input_json": {
+        "product": "A",
+        "band1": "B8A",
+        "band2": "B4",
+        "bbox": [
+          -64.3,
+          -31.5,
+          -64.0,
+          -31.3
+        ],
+        "start": "2025-10-01",
+        "end": "2025-10-31",
+        "resolution": 10,
+        "projection": "EPSG:32720",
+        "reducer": "median",
+        "apply_cloud_mask": true
+      },
+      "output_id": "cba_test_index_composite_s2_10m"
+    }
+  ],
+  "other_params": {}
+}

@@ -20,3 +20,6 @@ tmp/
 
 # Avoid files of gee_out folder
 gee_out/
+
+# Avoid log files
+.log
