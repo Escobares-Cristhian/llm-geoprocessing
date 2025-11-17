@@ -10,6 +10,13 @@ ROOT_DIR="$(cd "${SCRIPT_DIR}/../.." && pwd)"
 TEST_DIR="${SCRIPT_DIR}"
 LOG_FILE="${TEST_DIR}/gee_plugins_json_tests.log"
 
+# Build images and start gee service
+(
+  cd "$ROOT_DIR" || exit 1
+  docker compose -f docker/compose.dev.yaml build gee maie-dev
+  docker compose -f docker/compose.dev.yaml up -d gee
+)
+
 # Start with a clean log file
 : > "$LOG_FILE"
 
@@ -34,7 +41,7 @@ for json in "${json_files[@]}"; do
   # Run docker compose from repo root and capture all output
   docker_output=$(
     cd "$ROOT_DIR" || exit 1
-    docker compose -f docker/compose.dev.yaml run --rm --build maie-dev \
+    docker compose -f docker/compose.dev.yaml run --rm maie-dev \
       python -m llm_geoprocessing.app.dev_tests.run_geoprocess_json \
       --file "$rel_json" 2>&1
   )
