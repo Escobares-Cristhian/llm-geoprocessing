@@ -444,6 +444,8 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
                date: str    = Query(..., description="YYYY-MM-DD"),
                resolution: str = Query("default"),
                projection: str = Query("default"),
+               tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+               max_tiles: int = Query(25, description="safety cap on total tiles"),
                apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
@@ -464,14 +466,22 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
     )
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
-    default_scale = scale_nat if resolution == "default" else None
+    print(f"[GEE][rgb_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+        raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
-    params = _safe_download_params(
-        region=region, bbox_str=bbox, resolution=resolution, projection=projection,
-        default_scale=default_scale, product_hint=product, bands_count=3
-    )
-    url = img.getDownloadURL(params)
-    return {"tif_url": url}
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
+
+    return {"tiling": meta, "tiles": out_tiles}
 
 @app.get("/tif/rgb_composite")
 def rgb_composite(product: str = Query(..., description="GEE collection id"),
@@ -536,6 +546,8 @@ def index_single(product: str = Query(..., description="GEE image or collection 
                  palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
                  resolution: str = Query("default"),
                  projection: str = Query("default"),
+                 tile_size: int = Query(2400, description="tile size in pixels (edge)"),
+                 max_tiles: int = Query(25, description="safety cap on total tiles"),
                  apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
@@ -554,14 +566,21 @@ def index_single(product: str = Query(..., description="GEE image or collection 
     )
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
-    default_scale = scale_nat if resolution == "default" else None
+    print(f"[GEE][index_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
-    params = _safe_download_params(
-        region=region, bbox_str=bbox, resolution=resolution, projection=projection,
-        default_scale=default_scale, product_hint=product, bands_count=1
-    )
-    url = img.getDownloadURL(params)
-    return {"tif_url": url}
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
+
+    return {"tiling": meta, "tiles": out_tiles}
 
 
 @app.get("/tif/index_composite")
@@ -574,7 +593,7 @@ def index_composite(product: str = Query(..., description="GEE collection id"),
                     reducer: str = Query("mean"),
                     resolution: str = Query("default"),
                     projection: str = Query("default"),
-                    tile_size: int = Query(3072, description="tile size in pixels (edge)"),
+                    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
                     max_tiles: int = Query(25, description="safety cap on total tiles"),
                     apply_cloud_mask: bool = Query(False)):
     _init_ee()
