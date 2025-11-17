@@ -1,6 +1,6 @@
 import math
 from fastapi import FastAPI, HTTPException, Query
-import os, ee, json, math
+import os, ee, json
 from datetime import datetime, timedelta
 
 app = FastAPI(title="GEE Plugin")
@@ -36,7 +36,7 @@ def _parse_bbox(bbox_str: str) -> ee.Geometry:
         raise HTTPException(status_code=400, detail="Invalid bbox coordinates.")
     return ee.Geometry.Rectangle([xmin, ymin, xmax, ymax], proj=None, geodesic=False)
 
-def _bbox_vals(bbox_str: str) -> tuple[float,float,float,float]:
+def _bbox_vals(bbox_str: str) -> tuple[float, float, float, float]:
     xmin, ymin, xmax, ymax = [float(x) for x in bbox_str.split(",")]
     return xmin, ymin, xmax, ymax
 
@@ -60,7 +60,7 @@ def _guess_default_scale(product: str) -> float:
         return 250.0
     return 30.0
 
-def _approx_dims_from_bbox_and_scale(bbox_str: str, scale_m: float) -> tuple[int,int]:
+def _approx_dims_from_bbox_and_scale(bbox_str: str, scale_m: float) -> tuple[int, int]:
     xmin, ymin, xmax, ymax = _bbox_vals(bbox_str)
     lat_mid = (ymin + ymax) / 2.0
     m_per_deg_lat = 111320.0
@@ -92,8 +92,6 @@ def _infer_native_proj(product: str, region: ee.Geometry, sample_band: str, star
         scale = float(proj.nominalScale().getInfo())
         return crs, scale
     except Exception:
-        # # Heuristic fallback
-        # return "EPSG:3857", _guess_default_scale(product)
         raise HTTPException(status_code=400, detail="Could not infer native projection and scale for the given product and parameters.")
 
 # ---------- Cloud masking helpers (hardcoded per collection) ----------
@@ -181,7 +179,7 @@ def _apply_cloud_mask_by_product(img: ee.Image, product: str) -> ee.Image:
         return img
 
 # ---------- Tiling helpers (client-side, fixed grid) ----------
-def _projected_bbox(region: ee.Geometry, crs: str) -> tuple[float,float,float,float]:
+def _projected_bbox(region: ee.Geometry, crs: str) -> tuple[float, float, float, float]:
     # Bounds in target CRS (server-side transform, client fetch min/max)
     bounds = ee.Geometry(region).transform(crs, 1).bounds(1, crs)
     coords = bounds.coordinates().get(0).getInfo()
@@ -288,6 +286,36 @@ def _safe_download_params(
 
     return params
 
+def _resolve_crs_scale(
+    *,
+    product: str,
+    region: ee.Geometry,
+    sample_band: str,
+    start: str,
+    end: str,
+    projection: str,
+    resolution: str,
+    log_tag: str,
+) -> tuple[str, float]:
+    """
+    Resolve target CRS and scale starting from product-native values
+    and applying optional projection/resolution overrides.
+    """
+    if projection == "default" or resolution == "default":
+        crs_nat, scale_nat = _infer_native_proj(product, region, sample_band, start, end)
+        print("-" * 60)
+        print(f"[GEE][{log_tag}] Native CRS/scale: crs={crs_nat}, scale={scale_nat}")
+        if projection == "default" and resolution != "default":
+            scale_nat = float(resolution)
+        elif projection != "default" and resolution == "default":
+            crs_nat = projection
+        print(f"[GEE][{log_tag}] User overrides applied -> crs={crs_nat}, scale={scale_nat}")
+        print("-" * 60)
+    else:
+        crs_nat, scale_nat = projection, float(resolution)
+        print(f"[GEE][{log_tag}] Using custom CRS/scale -> crs={crs_nat}, scale={scale_nat}")
+    return crs_nat, scale_nat
+
 def _resolve_reducer(name: str):
     name = (name or "mean").lower()
     if name in ("mean", "avg", "promedio"):
@@ -303,13 +331,13 @@ def _resolve_reducer(name: str):
     raise HTTPException(status_code=400, detail="Invalid reducer. Use mean|min|max|median|mosaic.")
 
 # --- Core builders ---
-def _collection(product: str, region: ee.Geometry, start: str, end: str, cloud_mask: bool=False) -> ee.ImageCollection:
+def _collection(product: str, region: ee.Geometry, start: str, end: str, cloud_mask: bool = False) -> ee.ImageCollection:
     col = ee.ImageCollection(product).filterBounds(region).filterDate(start, end)
     if cloud_mask:
         col = col.map(lambda i: _apply_cloud_mask_by_product(ee.Image(i), product))
     return col
 
-def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool=False) -> ee.Image:
+def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
@@ -317,7 +345,7 @@ def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: s
     img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
     return img
 
-def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool=False) -> ee.Image:
+def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
@@ -387,17 +415,17 @@ def _scaled_nd(img: ee.Image, b1: str, b2: str, s1: float, o1: float, s2: float,
     ).rename('nd')
 
 # --- ND image builders ---
-def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str, cloud_mask: bool=False) -> ee.Image:
+def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
     start, end = _date_and_next(date)
     col  = _collection(product, region, start, end, cloud_mask=cloud_mask)
     first = ee.Image(col.first())
     s1, o1 = _band_scale_offset(first, b1, product)
     s2, o2 = _band_scale_offset(first, b2, product)
-    img_raw = col.mosaic()
-    img_nd  = _scaled_nd(img_raw, b1, b2, s1, o1, s2, o2)
+    col_nd = col.map(lambda im: _scaled_nd(ee.Image(im), b1, b2, s1, o1, s2, o2))
+    img_nd = col_nd.mosaic()
     return img_nd.clip(region)
 
-def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool=False) -> ee.Image:
+def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
     col   = _collection(product, region, start, end, cloud_mask=cloud_mask)
     first = ee.Image(col.first())
     s1, o1 = _band_scale_offset(first, b1, product)
@@ -411,26 +439,32 @@ def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, sta
 # --- Endpoints (return a signed URL for GeoTIFF download) ---
 @app.get("/tif/rgb_single")
 def rgb_single(product: str = Query(..., description="GEE image or collection id"),
-            bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
-            bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-            date: str    = Query(..., description="YYYY-MM-DD"),
-            resolution: str = Query("default"),
-            projection: str = Query("default"),
-            apply_cloud_mask: bool = Query(False)):
+               bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
+               bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+               date: str    = Query(..., description="YYYY-MM-DD"),
+               resolution: str = Query("default"),
+               projection: str = Query("default"),
+               apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     img = _rgb_image_single(product, bands, region, date, cloud_mask=bool(apply_cloud_mask))
 
-    # If resolution is default, reproject to product-native CRS/scale to avoid 1-pixel artifacts
-    if resolution == "default":
-        first_band = bands.split(",")[0].strip()
-        start, end = _date_and_next(date)
-        crs_nat, scale_nat = _infer_native_proj(product, region, first_band, start, end)
-        print(f"[GEE][rgb_single] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
-        img = img.reproject(crs=crs_nat, scale=scale_nat)
-        default_scale = scale_nat
-    else:
-        default_scale = None
+    # Resolve CRS & scale from native projection plus optional overrides
+    first_band = bands.split(",")[0].strip()
+    start_iso, end_iso = _date_and_next(date)
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=first_band,
+        start=start_iso,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="rgb_single",
+    )
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    default_scale = scale_nat if resolution == "default" else None
 
     params = _safe_download_params(
         region=region, bbox_str=bbox, resolution=resolution, projection=projection,
@@ -441,16 +475,16 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
 
 @app.get("/tif/rgb_composite")
 def rgb_composite(product: str = Query(..., description="GEE collection id"),
-                        bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
-                        bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-                        start: str   = Query(..., description="YYYY-MM-DD inclusive"),
-                        end: str     = Query(..., description="YYYY-MM-DD inclusive"),
-                        reducer: str = Query("mean"),
-                        resolution: str = Query("default"),
-                        projection: str = Query("default"),
-                        tile_size: int = Query(1360, description="tile size in pixels (edge)"),
-                        max_tiles: int = Query(25, description="safety cap on total tiles"),
-                        apply_cloud_mask: bool = Query(False)):
+                  bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
+                  bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+                  start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+                  end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+                  reducer: str = Query("mean"),
+                  resolution: str = Query("default"),
+                  projection: str = Query("default"),
+                  tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+                  max_tiles: int = Query(25, description="safety cap on total tiles"),
+                  apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
@@ -460,23 +494,17 @@ def rgb_composite(product: str = Query(..., description="GEE collection id"),
         raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
     img = _rgb_image_composite(product, bands, region, start, end_iso, reducer, cloud_mask=bool(apply_cloud_mask))
 
-    # Resolve CRS & scale (keep your chosen resolution)
-    if projection == "default" or resolution == "default":
-        # Get default native projection/scale
-        first_band = bands.split(",")[0].strip()
-        crs_nat, scale_nat = _infer_native_proj(product, region, first_band, start, end_iso)
-        
-        print("-"*60)
-        print(f"Native CRS/scale: crs={crs_nat}, scale={scale_nat}")
-        # Apply user projection/resolution overrides
-        if projection == "default" and resolution != "default":
-            scale_nat = float(resolution)
-        elif projection != "default" and resolution == "default":
-            crs_nat = projection
-        print(f"User overrides applied: crs={crs_nat}, scale={scale_nat}")
-        print("-"*60)
-    else:
-        crs_nat, scale_nat = projection, float(resolution)
+    first_band = bands.split(",")[0].strip()
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=first_band,
+        start=start,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="rgb_composite",
+    )
 
     print(f"[GEE][rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
@@ -486,66 +514,47 @@ def rgb_composite(product: str = Query(..., description="GEE collection id"),
         print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
-    # ----- INIT: Option 1 ----------------------------------------------------
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
     for t in tiles:
         params = dict(common)
-
         params["region"] = t["geom"]
         url = img.getDownloadURL(params)
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     print("DONE ALL TILES")
     return {"tiling": meta, "tiles": out_tiles}
-    # ----- END: Option 1 ----------------------------------------------------
-
-    # # ----- INIT: Option 2 ----------------------------------------------------
-    # # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
-    # common = {"format": "GEO_TIFF", "crs": crs_nat}
-
-    # out_tiles = []
-    # for t in tiles:
-    #     params = dict(common)
-    #     # Use fixed tile rectangle and fixed pixel dimensions for stable requests.
-    #     params["region"] = ee.Geometry.Rectangle(t["bbox_crs"], proj=crs_nat, geodesic=False)
-        
-    #     w = t['bbox_crs'][2] - t['bbox_crs'][0]
-    #     h = t['bbox_crs'][3] - t['bbox_crs'][1]
-    #     w_px = int(max(round(w / scale_nat), 1))
-    #     h_px = int(max(round(h / scale_nat), 1))
-    #     params["dimensions"] = f"{w_px}x{h_px}"
-        
-    #     url = img.getDownloadURL(params)
-    #     out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
-
-    # return {"tiling": meta, "tiles": out_tiles}
-    # # ----- END: Option 2 ----------------------------------------------------
 
 @app.get("/tif/index_single")
 def index_single(product: str = Query(..., description="GEE image or collection id"),
-              band1: str   = Query(..., description="First band for ND numerator"),
-              band2: str   = Query(..., description="Second band for ND denominator"),
-              bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-              date: str    = Query(..., description="YYYY-MM-DD"),
-              palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
-              resolution: str = Query("default"),
-              projection: str = Query("default"),
-              apply_cloud_mask: bool = Query(False)):
+                 band1: str   = Query(..., description="First band for ND numerator"),
+                 band2: str   = Query(..., description="Second band for ND denominator"),
+                 bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+                 date: str    = Query(..., description="YYYY-MM-DD"),
+                 palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
+                 resolution: str = Query("default"),
+                 projection: str = Query("default"),
+                 apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     img = _nd_image_single(product, band1, band2, region, date, cloud_mask=bool(apply_cloud_mask))
 
-    if resolution == "default":
-        start, end = _date_and_next(date)
-        crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end)
-        print(f"[GEE][index_single] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
-        img = img.reproject(crs=crs_nat, scale=scale_nat)
-        default_scale = scale_nat
-    else:
-        default_scale = None
+    start_iso, end_iso = _date_and_next(date)
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=band1,
+        start=start_iso,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="index_single",
+    )
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    default_scale = scale_nat if resolution == "default" else None
 
     params = _safe_download_params(
         region=region, bbox_str=bbox, resolution=resolution, projection=projection,
@@ -557,17 +566,17 @@ def index_single(product: str = Query(..., description="GEE image or collection 
 
 @app.get("/tif/index_composite")
 def index_composite(product: str = Query(..., description="GEE collection id"),
-                          band1: str   = Query(..., description="First band for ND numerator"),
-                          band2: str   = Query(..., description="Second band for ND denominator"),
-                          bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-                          start: str   = Query(..., description="YYYY-MM-DD inclusive"),
-                          end: str     = Query(..., description="YYYY-MM-DD inclusive"),
-                          reducer: str = Query("mean"),
-                          resolution: str = Query("default"),
-                          projection: str = Query("default"),
-                          tile_size: int = Query(3072, description="tile size in pixels (edge)"),
-                          max_tiles: int = Query(25, description="safety cap on total tiles"),
-                          apply_cloud_mask: bool = Query(False)):
+                    band1: str   = Query(..., description="First band for ND numerator"),
+                    band2: str   = Query(..., description="Second band for ND denominator"),
+                    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+                    start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+                    end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+                    reducer: str = Query("mean"),
+                    resolution: str = Query("default"),
+                    projection: str = Query("default"),
+                    tile_size: int = Query(3072, description="tile size in pixels (edge)"),
+                    max_tiles: int = Query(25, description="safety cap on total tiles"),
+                    apply_cloud_mask: bool = Query(False)):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
@@ -577,12 +586,16 @@ def index_composite(product: str = Query(..., description="GEE collection id"),
         raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
     img = _nd_image_composite(product, band1, band2, region, start, end_iso, reducer, cloud_mask=bool(apply_cloud_mask))
 
-    if projection == "default" or resolution == "default":
-        crs_nat, scale_nat = _infer_native_proj(product, region, band1, start, end_iso)
-        print(f"[GEE][index_single] Using default resolution -> crs={crs_nat}, scale_m={scale_nat}")
-    else:
-        crs_nat, scale_nat = projection, float(resolution)
-        print(f"[GEE][index_single] Using custom resolution -> crs={crs_nat}, scale_m={scale_nat}")
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=band1,
+        start=start,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="index_composite",
+    )
 
     print(f"[GEE][index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
@@ -591,40 +604,14 @@ def index_composite(product: str = Query(..., description="GEE collection id"),
     if len(tiles) > max_tiles:
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
-
-    # ----- INIT: Option 1 ----------------------------------------------------
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
     for t in tiles:
         params = dict(common)
-
         params["region"] = t["geom"]
         url = img.getDownloadURL(params)
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     return {"tiling": meta, "tiles": out_tiles}
-    # ----- END: Option 1 ----------------------------------------------------
-
-    # # ----- INIT: Option 2 ----------------------------------------------------
-    # # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
-    # common = {"format": "GEO_TIFF", "crs": crs_nat}
-
-    # out_tiles = []
-    # for t in tiles:
-    #     params = dict(common)
-    #     # Use fixed tile rectangle and fixed pixel dimensions for stable requests.
-    #     params["region"] = ee.Geometry.Rectangle(t["bbox_crs"], proj=crs_nat, geodesic=False)
-        
-    #     w = t['bbox_crs'][2] - t['bbox_crs'][0]
-    #     h = t['bbox_crs'][3] - t['bbox_crs'][1]
-    #     w_px = int(max(round(w / scale_nat), 1))
-    #     h_px = int(max(round(h / scale_nat), 1))
-    #     params["dimensions"] = f"{w_px}x{h_px}"
-        
-    #     url = img.getDownloadURL(params)
-    #     out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
-
-    # return {"tiling": meta, "tiles": out_tiles}
-    # # ----- END: Option 2 ----------------------------------------------------
