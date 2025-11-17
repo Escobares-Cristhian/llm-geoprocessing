@@ -22,4 +22,4 @@ tmp/
 gee_out/
 
 # Avoid log files
-.log
+*.log
