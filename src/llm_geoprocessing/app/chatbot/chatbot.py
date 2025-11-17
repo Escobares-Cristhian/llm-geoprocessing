@@ -2,6 +2,8 @@ import os
 from typing import Optional
 from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
 
 class Chatbot:
     def __init__(self):
@@ -59,10 +61,10 @@ class Chatbot:
         # Extract instructions from memory with a chat call
         resumen = cloned.send_message(instructions_to_add)
         
-        print("*"*60)
-        print("Resumen para nuevo chatbot clonado:")
-        print(resumen)
-        print("*"*60)
+        logger.debug("*"*60)
+        logger.debug("Resumen para nuevo chatbot clonado:")
+        logger.debug(resumen)
+        logger.debug("*"*60)
 
         # Elimino memoria
         cloned.mem.clear()

@@ -3,6 +3,9 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 def _plugin_instructions() -> str:
     # Information about available data and preprocessing
     data_metadata = get_metadata_preprocessing()
@@ -27,7 +30,7 @@ def _plugin_instructions() -> str:
     return plugin_instructions
 
 def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
-    print("Entered Interpreter Mode...")
+    logger.info("Entered Interpreter Mode...")
     chat = chatbot.clone(instructions_to_add=None)
     
     # Prepare interpreter prompt

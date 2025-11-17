@@ -3,6 +3,10 @@ from fastapi import FastAPI, HTTPException, Query
 import os, ee, json
 from datetime import datetime, timedelta
 
+from logging_config import get_logger
+logger = get_logger("gee")
+logger.info("GEE plugin logger initialized.")
+
 app = FastAPI(title="GEE Plugin")
 
 # --- EE bootstrap (Service Account if available; else default) ---
@@ -303,17 +307,17 @@ def _resolve_crs_scale(
     """
     if projection == "default" or resolution == "default":
         crs_nat, scale_nat = _infer_native_proj(product, region, sample_band, start, end)
-        print("-" * 60)
-        print(f"[GEE][{log_tag}] Native CRS/scale: crs={crs_nat}, scale={scale_nat}")
+        logger.debug("-" * 60)
+        logger.debug(f"[{log_tag}] Native CRS/scale: crs={crs_nat}, scale={scale_nat}")
         if projection == "default" and resolution != "default":
             scale_nat = float(resolution)
         elif projection != "default" and resolution == "default":
             crs_nat = projection
-        print(f"[GEE][{log_tag}] User overrides applied -> crs={crs_nat}, scale={scale_nat}")
-        print("-" * 60)
+        logger.debug(f"[{log_tag}] User overrides applied -> crs={crs_nat}, scale={scale_nat}")
+        logger.debug("-" * 60)
     else:
         crs_nat, scale_nat = projection, float(resolution)
-        print(f"[GEE][{log_tag}] Using custom CRS/scale -> crs={crs_nat}, scale={scale_nat}")
+        logger.debug(f"[{log_tag}] Using custom CRS/scale -> crs={crs_nat}, scale={scale_nat}")
     return crs_nat, scale_nat
 
 def _resolve_reducer(name: str):
@@ -402,7 +406,7 @@ def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, f
         if s is None: s = 1.0
         if o is None: o = 0.0
 
-    print(f"[GEE][_band_scale_offset] product~='{product}', band={band}, scale={s}, offset={o}")
+    logger.debug(f"[_band_scale_offset] product~='{product}', band={band}, scale={s}, offset={o}")
     return s, o
 
 # --- ND helpers (scale+offset) ---
@@ -466,10 +470,10 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
     )
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
-    print(f"[GEE][rgb_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    logger.debug(f"[rgb_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
     if len(tiles) > max_tiles:
-        print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
@@ -516,12 +520,12 @@ def rgb_composite(product: str = Query(..., description="GEE collection id"),
         log_tag="rgb_composite",
     )
 
-    print(f"[GEE][rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    logger.debug(f"[rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
     if len(tiles) > max_tiles:
-        print(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
@@ -534,7 +538,7 @@ def rgb_composite(product: str = Query(..., description="GEE collection id"),
         url = img.getDownloadURL(params)
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
-    print("DONE ALL TILES")
+    logger.info("DONE ALL TILES")
     return {"tiling": meta, "tiles": out_tiles}
 
 @app.get("/tif/index_single")
@@ -566,9 +570,10 @@ def index_single(product: str = Query(..., description="GEE image or collection 
     )
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
-    print(f"[GEE][index_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    logger.debug(f"[index_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
     if len(tiles) > max_tiles:
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
@@ -616,11 +621,12 @@ def index_composite(product: str = Query(..., description="GEE collection id"),
         log_tag="index_composite",
     )
 
-    print(f"[GEE][index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    logger.debug(f"[index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
     img = img.reproject(crs=crs_nat, scale=scale_nat)
 
     tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
     if len(tiles) > max_tiles:
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).

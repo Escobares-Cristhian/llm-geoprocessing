@@ -15,6 +15,9 @@ import json
 import argparse
 from llm_geoprocessing.app.llm.geoprocess_agent import geoprocess
 
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 def main() -> int:
     ap = argparse.ArgumentParser(description="Execute geoprocess(json_instructions) from a JSON file.")
     ap.add_argument("--file", required=True, help="Path to JSON file with the final instructions.")
@@ -24,7 +27,7 @@ def main() -> int:
         data = json.load(f)
 
     result = geoprocess(data)
-    print(result)
+    logger.info(f"Geoprocess result: {result}")
     return 0
 
 if __name__ == "__main__":

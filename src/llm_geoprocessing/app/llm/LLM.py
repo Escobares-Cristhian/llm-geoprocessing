@@ -21,6 +21,9 @@ import contextlib
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Sequence, Union, List, Tuple, Callable
 
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 
 # ----- Ensure UTF-8 stdin/stdout/stderr in Python 3.7+ ----------------------------
 # This prevents crashes from UnicodeDecodeError or UnicodeEncodeError

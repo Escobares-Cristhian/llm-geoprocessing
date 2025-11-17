@@ -14,6 +14,9 @@ from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_prep
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 # ---------------------------------
 # ----- JSON Completion Logic -----
 # ---------------------------------
@@ -271,15 +274,15 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
         questions = list(wrapper.get("questions", []))
         
         # DEBUG
-        print("+"*60)
+        logger.debug("+"*60)
         # print wrapper
-        print("Current JSON state:")
-        print(json.dumps(state, ensure_ascii=False, indent=2))
-        print(f"Complete: {complete}")
-        print(f"Questions:")
+        logger.debug("Current JSON state:")
+        logger.debug(json.dumps(state, ensure_ascii=False, indent=2))
+        logger.debug(f"Complete: {complete}")
+        logger.debug(f"Questions:")
         for q in questions:
-            print(f"- {q}")
-        print("+"*60)
+            logger.debug(f"- {q}")
+        logger.debug("+"*60)
 
     state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=5, max_hierarchy_per_error=1)
 
@@ -509,29 +512,29 @@ TILES_ROOT      = OUTPUT_BASE_DIR / "gee_tiles"
 MERGED_ROOT     = OUTPUT_BASE_DIR / "gee_merged"
 
 def _debug_env():
-    print(f"[DEBUG] PATH={os.environ.get('PATH','')}")
-    print(f"[DEBUG] GEO_OUT_DIR={OUTPUT_BASE_DIR}")
-    print(f"[DEBUG] CWD={os.getcwd()}")
-    print(f"[DEBUG] gdalbuildvrt={shutil.which('gdalbuildvrt')}")
-    print(f"[DEBUG] gdal_translate={shutil.which('gdal_translate')}")
-    print(f"[DEBUG] TILES_ROOT={TILES_ROOT} exists? {TILES_ROOT.exists()}")
-    print(f"[DEBUG] MERGED_ROOT={MERGED_ROOT} exists? {MERGED_ROOT.exists()}")
+    logger.debug(f"PATH={os.environ.get('PATH','')}")
+    logger.debug(f"GEO_OUT_DIR={OUTPUT_BASE_DIR}")
+    logger.debug(f"CWD={os.getcwd()}")
+    logger.debug(f"gdalbuildvrt={shutil.which('gdalbuildvrt')}")
+    logger.debug(f"gdal_translate={shutil.which('gdal_translate')}")
+    logger.debug(f"TILES_ROOT={TILES_ROOT} exists? {TILES_ROOT.exists()}")
+    logger.debug(f"MERGED_ROOT={MERGED_ROOT} exists? {MERGED_ROOT.exists()}")
 
 def _print_tree(root: Path, depth: int = 2):
     try:
         root = Path(root)
-        print(f"[DEBUG] Tree: {root} (depth={depth})")
+        logger.debug(f"Tree: {root} (depth={depth})")
         if not root.exists():
-            print("  (does not exist)")
+            logger.debug("  (does not exist)")
             return
         def _walk(d: Path, level: int = 0):
             if level > depth: return
             for p in sorted(d.iterdir()):
-                print("  " * level + f"- {p.name}")
+                logger.debug("  " * level + f"- {p.name}")
                 if p.is_dir(): _walk(p, level + 1)
         _walk(root, 0)
     except Exception as e:
-        print(f"[DEBUG] tree error for {root}: {e}")
+        logger.debug(f"tree error for {root}: {e}")
 
 def _ensure_outdirs() -> None:
     TILES_ROOT.mkdir(parents=True, exist_ok=True)
@@ -556,7 +559,7 @@ def _download_file(url: str, dest: Path, timeout: int = 300) -> Path:
                 if chunk:
                     f.write(chunk)
     size = dest.stat().st_size
-    print(f"[DEBUG] saved {dest} ({size} bytes)")
+    logger.debug(f"Saved {dest} ({size} bytes)")
     return dest
 
 def _download_tiles(urls: list[str], tiles_dir: Path, stem: str) -> list[Path]:
@@ -577,8 +580,8 @@ def _download_tiles(urls: list[str], tiles_dir: Path, stem: str) -> list[Path]:
 def _require_gdal() -> tuple[str, str]:
     vb = shutil.which("gdalbuildvrt")
     gt = shutil.which("gdal_translate")
-    print(f"[DEBUG] which gdalbuildvrt -> {vb}")
-    print(f"[DEBUG] which gdal_translate -> {gt}")
+    logger.debug(f"which gdalbuildvrt -> {vb}")
+    logger.debug(f"which gdal_translate -> {gt}")
     if not vb or not gt:
         raise RuntimeError(
             "GDAL not found. Install gdal (gdalbuildvrt, gdal_translate) in PATH."
@@ -619,9 +622,9 @@ def _maybe_fix_modis_sinusoidal_srs(tif: Path) -> None:
             ],
             check=True,
         )
-        print(f"[DEBUG] fixed MODIS sinusoidal SRS for {tif}")
+        logger.debug(f"fixed MODIS sinusoidal SRS for {tif}")
     except Exception as e:
-        print(f"[DEBUG] MODIS SRS fix skipped for {tif}: {e}")
+        logger.debug(f"MODIS SRS fix skipped for {tif}: {e}")
 
 def _merge_with_gdal(src_files: list[Path], out_tif: Path) -> Path:
     vb, gt = _require_gdal()
@@ -709,9 +712,9 @@ def geoprocess(json_instructions) -> str:
                 urls = [result["url"]]
                 
         # Print urls for this action
-        print(f"Action '{name}' produced {len(urls) if urls else 0} output URLs. Downloading and merging...")
-        print(f"[DEBUG] tiles_dir={TILES_ROOT / out_id}")
-        print(f"[DEBUG] merged_tif={MERGED_ROOT / (out_id + '.tif')}")
+        logger.info(f"Action '{name}' produced {len(urls) if urls else 0} output URLs. Downloading and merging...")
+        logger.debug(f"tiles_dir={TILES_ROOT / out_id}")
+        logger.debug(f"merged_tif={MERGED_ROOT / (out_id + '.tif')}")
 
         # Download to fixed path and merge with GDAL
         if urls:
@@ -720,11 +723,11 @@ def geoprocess(json_instructions) -> str:
             merged_tif = MERGED_ROOT / f"{out_id}.tif"
             try:
                 local_tiles = _download_tiles(urls, tiles_dir, out_id)
-                print(f"[DEBUG] downloaded {len(local_tiles)} tiles to {tiles_dir}")
+                logger.debug(f"downloaded {len(local_tiles)} tiles to {tiles_dir}")
                 _print_tree(tiles_dir, depth=1)
 
                 final_path = _merge_with_gdal(local_tiles, merged_tif)
-                print(f"[DEBUG] merged -> {final_path}")
+                logger.debug(f"merged -> {final_path}")
                 outputs[out_id] = [str(final_path)]
             except Exception as e:
                 return f"Action '{name}' download/merge failed: {e}"
@@ -748,7 +751,7 @@ def geoprocess(json_instructions) -> str:
 # ----------------
 
 def main(chatbot: Chatbot, msg: str) -> Tuple[Chatbot, str] | str:
-    print("Entered Geoprocessing Mode...")
+    logger.info("Entered Geoprocessing Mode...")
     
     # Build JSON instructions via dialog
     chatbot, json_instructions = complete_json(chatbot, msg)
@@ -757,10 +760,11 @@ def main(chatbot: Chatbot, msg: str) -> Tuple[Chatbot, str] | str:
     if json_instructions == "exit":
         return "exit"
     
-    print("*"*60)
-    print("Final JSON instructions:")
-    print(json.dumps(json_instructions, ensure_ascii=False, indent=2))
-    print("*"*60)
+    logger.debug("*"*60)
+    logger.debug("Final JSON instructions:")
+    logger.debug(json.dumps(json_instructions, ensure_ascii=False, indent=2))
+    logger.debug("*"*60)
+    
     # Save JSON generation in chat history
     chatbot.mem.add_assistant(f"Generated JSON instructions:\n{json.dumps(json_instructions, ensure_ascii=False, indent=2)}")
 

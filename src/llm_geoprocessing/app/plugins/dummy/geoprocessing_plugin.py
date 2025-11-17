@@ -1,5 +1,8 @@
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 def get_metadata_geoprocessing() -> str:
-    print("Using DUMMY metadata geoprocessing instructions.")
+    logger.info("Using DUMMY metadata geoprocessing instructions.")
     return (
         "- Geoprocessing Functions:\n"
         "    - cut_by_vector(product_id: str, area_of_interest: dict) -> str: Cuts out the specified area from the product.\n"
@@ -28,7 +31,7 @@ def get_metadata_geoprocessing() -> str:
     )
 
 def get_documentation_geoprocessing() -> str:
-    print("Using DUMMY documentation geoprocessing instructions.")
+    logger.info("Using DUMMY documentation geoprocessing instructions.")
     return (
         "Geoprocessing Functions Documentation:\n"
         "- cut_by_vector(product_id: str, area_of_interest: dict) -> str: Cuts out the specified area from the product.\n"
