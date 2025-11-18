@@ -1,6 +1,9 @@
 - To run the main.py just run:  
 `docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main`
 
+- To run the main.py with custom logger level (e.g., DEBUG) just run:
+`docker compose -f docker/compose.dev.yaml run --rm --build --env GEOLLM_LOG_LEVEL=DEBUG geollm python -m llm_geoprocessing.app.main`
+
 - To run the chat_only_llm.py just run:  
 `docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.experiments.chat_only_llm`
 

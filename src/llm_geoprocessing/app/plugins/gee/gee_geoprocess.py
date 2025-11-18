@@ -4,8 +4,7 @@ import os, ee, json
 from datetime import datetime, timedelta
 
 from logging_config import get_logger
-logger = get_logger("gee")
-logger.info("GEE plugin logger initialized.")
+logger = get_logger("gee_geoprocess")
 
 app = FastAPI(title="GEE Plugin")
 
