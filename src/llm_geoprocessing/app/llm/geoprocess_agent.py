@@ -236,7 +236,8 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
         # Get user answers
         valid_user_answer = False
         while not valid_user_answer:
-            user_answer = input("You: ").strip()
+            user_answer = chat_io.ask_user_input("You: ")
+            user_answer = user_answer.strip()
 
             # Check for commands
             command = chat.check_command(user_answer)

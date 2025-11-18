@@ -11,7 +11,8 @@ logger = get_logger("geollm")
 def get_user_input(chatbot: Chatbot, chat_prefix: str = "You: ") -> str | None:
     valid_user_msg = False
     while not valid_user_msg:
-        msg = input(chat_prefix).strip()
+        msg = chat_io.ask_user_input(chat_prefix)
+        msg = msg.strip()
 
         # Check for commands
         command = chatbot.check_command(msg)
@@ -38,7 +39,7 @@ if __name__ == "__main__":
         
         while True:
             # Start chat until not empty input is given
-            msg = get_user_input(chatbot)
+            msg = get_user_input(chatbot, "You: ")
             
             # Handle exit command
             if msg == "exit":

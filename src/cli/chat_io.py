@@ -1,5 +1,8 @@
 import sys
 
+def ask_user_input(chat_prefix:str) -> str | None:
+    return input(chat_prefix)
+
 def print_user_msg(user_name: str, msg: str) -> None:
     out_print = f"\n{user_name}:\n{msg}"
     print(out_print, flush=True, sep='')
