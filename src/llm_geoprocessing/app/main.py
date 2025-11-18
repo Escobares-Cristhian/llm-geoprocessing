@@ -3,6 +3,8 @@ from llm_geoprocessing.app.llm.mode_selector_agent import define_mode_interactio
 from llm_geoprocessing.app.llm.geoprocess_agent import main as geoprocess_main
 from llm_geoprocessing.app.llm.interpreter_agent import main as interpreter_main
 
+import cli.chat_io as chat_io
+
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
@@ -18,7 +20,7 @@ def get_user_input(chatbot: Chatbot, chat_prefix: str = "You: ") -> str | None:
         elif command == "ask for input":
             continue  # ask again
         elif command:
-            print(command) # print command output and ask again
+            chat_io.print_command_msg("command_name not implemented yet", command)
             continue
 
         valid_user_msg = True
@@ -59,7 +61,7 @@ if __name__ == "__main__":
             exit()
         
         # Print selected mode
-        print(f"[Selected Mode: {selected_mode}]")
+        chat_io.print_mode_selected(selected_mode)
         
         # Check if it is geoprocessing mode or interpreter mode
         if selected_mode not in ["geoprocessing", "interpreter"]:

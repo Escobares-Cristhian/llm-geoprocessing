@@ -14,6 +14,8 @@ from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_prep
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
+import cli.chat_io as chat_io
+
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
@@ -227,7 +229,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             + "\n Respond in the same language as the user."
         )
         q_msg = chat.send_message(q_prompt)
-        print(f"{chat.chat.__class__.__name__}: {q_msg}") # show LLM's question to the user
+        chat_io.print_assistant_msg(chatbot.chat.__class__.__name__, q_msg) # show LLM's question to the user
         # Save assistant response in to original chat history
         chatbot.mem.add_assistant(q_msg)
 
@@ -243,7 +245,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             elif command == "ask for input":
                 continue  # ask again
             elif command:
-                print(command) # print command output and ask again
+                chat_io.print_command_msg("command_name not implemented yet", command)
                 continue
             
             valid_user_answer = True

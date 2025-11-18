@@ -3,6 +3,8 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 
+import cli.chat_io as chat_io
+
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
@@ -110,7 +112,7 @@ def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
             "Summary:"
         )
         summary = chatbot.clone().send_message(summary_prompt)
-        print(f"{chatbot.chat.__class__.__name__}: {summary}") # show LLM's question to the user
+        chat_io.print_assistant_msg(chatbot.chat.__class__.__name__, summary) # show LLM's question to the user
     
     mode_to_workflow = {
         "exit": "exit",

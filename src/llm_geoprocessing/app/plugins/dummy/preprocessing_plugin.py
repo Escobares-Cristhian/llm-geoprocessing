@@ -1,5 +1,8 @@
+from llm_geoprocessing.app.logging_config import get_logger
+logger = get_logger("geollm")
+
 def get_metadata_preprocessing() -> str:
-    print("Using DUMMY metadata preprocessing instructions.")
+    logger.info("Using DUMMY metadata preprocessing instructions.")
     return (
         "SATELLITE DATA\n"
         "- Satellite Pepito: multispectral imagery, resolution 10m, swat 10km, bands: B1, B2, B3, B4.\n"
@@ -36,7 +39,7 @@ def get_metadata_preprocessing() -> str:
     )
 
 def get_documentation_preprocessing() -> str:
-    print("Using DUMMY documentation preprocessing instructions.")
+    logger.info("Using DUMMY documentation preprocessing instructions.")
     return (
         "Preprocessing Functions:\n"
         "- cloud_masking(product_id: str) -> str: Applies cloud masking to the specified product.\n"

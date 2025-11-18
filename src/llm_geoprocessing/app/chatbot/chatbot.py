@@ -103,25 +103,3 @@ class Chatbot:
         # Send message to LLM and get response
         response = self.send_message(msg)
         return f"{self.chat.__class__.__name__}: {response}"
-    
-    def interactive_chat(self):
-        while True:
-            response = self.chat_once()
-            
-            # If empty input, ask again for input
-            if response == "ask for input":
-                continue
-            
-            # Handle exit command
-            if response == "exit":
-                break
-            
-            # Print LLM response
-            print(response)
-
-if __name__ == "__main__":
-    # Initialize chatbot
-    chatbot = Chatbot()
-
-    # Start interactive chat
-    chatbot.interactive_chat()
