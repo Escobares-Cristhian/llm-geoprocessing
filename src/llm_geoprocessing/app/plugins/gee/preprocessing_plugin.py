@@ -10,6 +10,10 @@ def get_metadata_preprocessing() -> str:
         "- LANDSAT/LT05/C02/T1_L2: Landsat 5 Surface Reflectance\n"
         "- MODIS/061/MOD09GA: MODIS Terra Surface Reflectance\n"
         "- MODIS/061/MYD09GA: MODIS Aqua Surface Reflectance\n"
+        "NOTES on products:\n"
+        # "- No usar nombre coloquial como 'Sentinel-2' o 'Landsat 8' o 'MODIS'; use siempre el ID completo.\n"
+        # Traducción:
+        "- Do not use colloquial names like 'Sentinel-2' or 'Landsat 8' or 'MODIS'; always use the full ID.\n"
         "---------- END of METADATA of DATA & PREPROCESSING ----------\n"
     )
 
