@@ -287,7 +287,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             logger.debug(f"- {q}")
         logger.debug("+"*60)
 
-    state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=5, max_hierarchy_per_error=1)
+    state = check_and_fix_json(chat, state, hierarchy=0, max_hierarchy=5, max_hierarchy_per_error=3)
 
     return chatbot, state
 

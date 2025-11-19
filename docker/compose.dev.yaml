@@ -18,11 +18,13 @@ services:
     volumes:
       - ..:/app              # live code
       - ../gee_out:/gee_out          # <-- host folder bind-mounted here
+      - /tmp/.X11-unix:/tmp/.X11-unix:ro
     env_file:
       - ../.env             # OPENAI_API_KEY, GEMINI_API_KEY, etc.
     command: bash           # or: ["llmgeo", "--help"]
     environment:
       GEE_PLUGIN_URL: http://gee:8000
       GEO_OUT_DIR: /gee_out          # <-- tell your code to write here
+      DISPLAY: ${DISPLAY}
     depends_on:
       - gee

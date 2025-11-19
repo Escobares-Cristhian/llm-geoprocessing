@@ -4,19 +4,19 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# tools you might want; keep minimal
+# System deps: git, curl, Tkinter, GDAL
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl && \
-    rm -rf /var/lib/apt/lists/*
+    git \
+    curl \
+    python3-tk \
+    gdal-bin \
+ && rm -rf /var/lib/apt/lists/*
 
 WORKDIR /app
 
 # Install only deps; source code will be bind-mounted
 COPY requirements-dev.txt ./
 RUN pip install --upgrade pip && pip install -r requirements-dev.txt
-
-# Install gdal command line tools
-RUN apt-get update && apt-get install -y gdal-bin
 
 # Let Python see your bind-mounted src/ without editable installs
 ENV PYTHONPATH=/app/src

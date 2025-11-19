@@ -39,7 +39,7 @@ if __name__ == "__main__":
     model_name = chatbot.chat.__class__.__name__
     
     # Initialize chat I/O
-    chat_io = ChatIO(user_name=user_name, model_name=model_name)
+    chat_io = ChatIO(user_name=user_name, model_name=model_name, use_gui=True)
     
     while True:
         # --------------------------------------
