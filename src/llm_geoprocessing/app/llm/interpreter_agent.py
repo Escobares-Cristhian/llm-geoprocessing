@@ -3,7 +3,7 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 
-import cli.chat_io as chat_io
+from cli.chat_io import ChatIO
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -31,7 +31,7 @@ def _plugin_instructions() -> str:
     )
     return plugin_instructions
 
-def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
+def main(chatbot: Chatbot, chat_io: ChatIO, msg_from_geoprocess: Optional[str], msg_from_user: str) -> Chatbot | str:
     logger.info("Entered Interpreter Mode...")
     chat = chatbot.clone(instructions_to_add=None)
     
@@ -64,7 +64,7 @@ def main(chatbot: Chatbot, msg_from_geoprocess: Optional[str], msg_from_user: st
     
     # Send message to LLM and get response||
     response = chat.send_message(interpreter_prompt)
-    chat_io.print_assistant_msg(chatbot.chat.__class__.__name__, response) # show LLM's question to the user
+    chat_io.print_assistant_msg(response) # show LLM's question to the user
     
     # Save assistant response in to original chat history
     chatbot.mem.add_assistant(response)

@@ -3,7 +3,7 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 
-import cli.chat_io as chat_io
+from cli.chat_io import ChatIO
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -89,7 +89,7 @@ def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Option
     raise ValueError("No valid mode selected.")
 
 
-def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
+def define_mode_interaction(chatbot: Chatbot, chat_io: ChatIO, msg: str) -> str:
     modes = ["Geoproceso", "Consulta de Capacidades","Consulta o Interpretación de Datos", "Consulta no geoespacial"]
 
     modes_explained = {
@@ -112,7 +112,7 @@ def define_mode_interaction(chatbot: Chatbot, msg: str) -> str:
             "Summary:"
         )
         summary = chatbot.clone().send_message(summary_prompt)
-        chat_io.print_assistant_msg(chatbot.chat.__class__.__name__, summary) # show LLM's question to the user
+        chat_io.print_assistant_msg(summary) # show LLM's question to the user
     
     mode_to_workflow = {
         "exit": "exit",

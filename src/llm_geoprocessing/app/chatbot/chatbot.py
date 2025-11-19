@@ -2,8 +2,6 @@ import os
 from typing import Optional
 from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
 
-import cli.chat_io as chat_io
-
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
@@ -89,7 +87,7 @@ class Chatbot:
     def chat_once(self, msg: Optional[str] = None):
         # If no message provided, ask for input
         if msg is None:
-            msg = chat_io.ask_user_input("You: ")
+            return "ask for input"
         
         # If empty input, ask again for input
         if not msg.strip():

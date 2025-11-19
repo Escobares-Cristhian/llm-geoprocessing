@@ -14,7 +14,7 @@ from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_prep
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 
-import cli.chat_io as chat_io
+from cli.chat_io import ChatIO
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -121,7 +121,7 @@ def _extract_first_json_block(text: str) -> Optional[Dict[str, Any]]:
     return None
 
 
-def complete_json(chatbot: Chatbot, user_message: str) -> Tuple[Chatbot, Dict[str, Any] | str]:
+def complete_json(chatbot: Chatbot, chat_io: ChatIO, user_message: str) -> Tuple[Chatbot, Dict[str, Any] | str]:
     """
     Build the target JSON by dialog with the user via the LLM.
     - Input: chatbot instance and single pre-processed message (string).
@@ -229,14 +229,14 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             + "\n Respond in the same language as the user."
         )
         q_msg = chat.send_message(q_prompt)
-        chat_io.print_assistant_msg(chatbot.chat.__class__.__name__, q_msg) # show LLM's question to the user
+        chat_io.print_assistant_msg(q_msg) # show LLM's question to the user
         # Save assistant response in to original chat history
         chatbot.mem.add_assistant(q_msg)
 
         # Get user answers
         valid_user_answer = False
         while not valid_user_answer:
-            user_answer = chat_io.ask_user_input("You: ")
+            user_answer = chat_io.ask_user_input()
             user_answer = user_answer.strip()
 
             # Check for commands
@@ -753,11 +753,11 @@ def geoprocess(json_instructions) -> str:
 # ----- Main -----
 # ----------------
 
-def main(chatbot: Chatbot, msg: str) -> Tuple[Chatbot, str] | str:
+def main(chatbot: Chatbot, chat_io: ChatIO, msg: str) -> Tuple[Chatbot, str] | str:
     logger.info("Entered Geoprocessing Mode...")
     
     # Build JSON instructions via dialog
-    chatbot, json_instructions = complete_json(chatbot, msg)
+    chatbot, json_instructions = complete_json(chatbot, chat_io, msg)
     
     # Handle exit command
     if json_instructions == "exit":

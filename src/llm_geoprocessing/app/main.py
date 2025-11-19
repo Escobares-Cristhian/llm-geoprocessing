@@ -3,15 +3,15 @@ from llm_geoprocessing.app.llm.mode_selector_agent import define_mode_interactio
 from llm_geoprocessing.app.llm.geoprocess_agent import main as geoprocess_main
 from llm_geoprocessing.app.llm.interpreter_agent import main as interpreter_main
 
-import cli.chat_io as chat_io
+from cli.chat_io import ChatIO
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
-def get_user_input(chatbot: Chatbot, chat_prefix: str = "You: ") -> str | None:
+def get_user_input(chatbot: Chatbot) -> str | None:
     valid_user_msg = False
     while not valid_user_msg:
-        msg = chat_io.ask_user_input(chat_prefix)
+        msg = chat_io.ask_user_input()
         msg = msg.strip()
 
         # Check for commands
@@ -32,6 +32,15 @@ if __name__ == "__main__":
     # Initialize chatbot
     chatbot = Chatbot()
     
+    # Define user name
+    user_name = "You"
+    
+    # Define model name
+    model_name = chatbot.chat.__class__.__name__
+    
+    # Initialize chat I/O
+    chat_io = ChatIO(user_name=user_name, model_name=model_name)
+    
     while True:
         # --------------------------------------
         # ----- Mode Selection Interaction -----
@@ -39,7 +48,7 @@ if __name__ == "__main__":
         
         while True:
             # Start chat until not empty input is given
-            msg = get_user_input(chatbot, "You: ")
+            msg = get_user_input(chatbot)
             
             # Handle exit command
             if msg == "exit":
@@ -49,7 +58,7 @@ if __name__ == "__main__":
             chatbot.mem.add_user(msg)
             
             # Select mode based on user input
-            selected_mode = define_mode_interaction(chatbot, msg)
+            selected_mode = define_mode_interaction(chatbot, chat_io, msg)
             
             if selected_mode == "ask for input":
                 continue  # ask again for input
@@ -76,7 +85,7 @@ if __name__ == "__main__":
         msg_to_interpreter = None
         if selected_mode == "geoprocessing":
             logger.info("Entering Geoprocessing Mode...")
-            chatbot, msg_to_interpreter = geoprocess_main(chatbot, msg)
+            chatbot, msg_to_interpreter = geoprocess_main(chatbot, chat_io, msg)
             
             # Handle exit command
             if msg_to_interpreter == "exit":
@@ -86,7 +95,7 @@ if __name__ == "__main__":
         # ----- Interpreter Interaction -----
         # -----------------------------------
         logger.info("Entering Interpreter Mode...")
-        chatbot = interpreter_main(chatbot, msg_to_interpreter, msg)
+        chatbot = interpreter_main(chatbot, chat_io, msg_to_interpreter, msg)
         
         # Handle exit command
         if chatbot == "exit":
