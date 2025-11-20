@@ -388,29 +388,45 @@ def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, f
     logger.debug(f"[_band_scale_offset] product~='{product}', band={band}, scale={s}, offset={o}")
     return s, o
 
+# Apply scale+offset to 1..N bands
+def _apply_scale_offset_multi(img: ee.Image, product: str, bands: list[str] | None) -> ee.Image:
+    if bands is None:
+        # use all band names from the image
+        bands = ee.Image(img).bandNames().getInfo()
+
+    scaled = []
+    for b in bands:
+        s, o = _band_scale_offset(img, b, product)
+        scaled_band = img.select([b]).multiply(s).add(o).rename(b)
+        scaled.append(scaled_band)
+
+    out = ee.Image.cat(scaled)
+    return out.copyProperties(img, img.propertyNames())
+
+
 # --- n-band image builders ---
 def _bands_image_single(
     product: str,
     bands_csv: str | None,
     region: ee.Geometry,
     date: str,
-    cloud_mask: bool = False
+    cloud_mask: bool = False,
+    apply_scale_offset: bool = False,
 ) -> ee.Image:
-    """
-    Single-date raw multi-band image:
-    - If bands_csv is None/empty: export all available bands.
-    - Otherwise: export only the requested bands (1..N), in the given order.
-    """
     start, end = _date_and_next(date)
     col = _collection(product, region, start, end, cloud_mask=cloud_mask)
     img = col.mosaic().clip(region)
 
+    bands_list = None
     if bands_csv:
-        bands = [s.strip() for s in bands_csv.split(",") if s.strip()]
-        if bands:
-            img = img.select(bands)
+        bands_list = [s.strip() for s in bands_csv.split(",") if s.strip()]
+        if bands_list:
+            img = img.select(bands_list)
 
-    return img
+    if apply_scale_offset:
+        img = _apply_scale_offset_multi(img, product, bands_list)
+
+    return ee.Image(img)
 
 def _bands_image_composite(
     product: str,
@@ -420,34 +436,56 @@ def _bands_image_composite(
     end: str,
     reducer: str,
     cloud_mask: bool = False,
+    apply_scale_offset: bool = False,
 ) -> ee.Image:
-    """
-    Multi-date raw multi-band composite image:
-    - If bands_csv is None/empty: export all available bands.
-    - Otherwise: export only the requested bands (1..N), in the given order.
-    """
     col = _collection(product, region, start, end, cloud_mask=cloud_mask)
 
+    bands_list = None
     if bands_csv:
-        bands = [s.strip() for s in bands_csv.split(",") if s.strip()]
-        if bands:
-            col = col.select(bands)
+        bands_list = [s.strip() for s in bands_csv.split(",") if s.strip()]
+        if bands_list:
+            col = col.select(bands_list)
 
     how = _resolve_reducer(reducer)
     img = col.mosaic() if how == "mosaic" else getattr(col, how)()
-    return img.clip(region)
+    img = img.clip(region)
+
+    if apply_scale_offset:
+        img = _apply_scale_offset_multi(img, product, bands_list)
+
+    return ee.Image(img)
 
 
 # --- RGB image builders ---
-def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
+def _rgb_image_single(
+    product: str,
+    bands_csv: str,
+    region: ee.Geometry,
+    date: str,
+    cloud_mask: bool = False,
+    apply_scale_offset: bool = False,
+) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
     start, end = _date_and_next(date)
     img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
+
+    if apply_scale_offset:
+        img = _apply_scale_offset_multi(img, product, b)
+
     return img
 
-def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
+def _rgb_image_composite(
+    product: str,
+    bands_csv: str,
+    region: ee.Geometry,
+    start: str,
+    end: str,
+    reducer: str,
+    cloud_mask: bool = False,
+    apply_scale_offset: bool = False,
+) -> ee.Image:
     b = [s.strip() for s in bands_csv.split(",")]
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
@@ -457,8 +495,12 @@ def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, star
         img = col.mosaic()
     else:
         img = getattr(col, how)()
-    return img.clip(region)
+    img = img.clip(region)
 
+    if apply_scale_offset:
+        img = _apply_scale_offset_multi(img, product, b)
+
+    return img
 
 # --- Normalized Difference Index builders ---
 def _scaled_nd(img: ee.Image, b1: str, b2: str, s1: float, o1: float, s2: float, o2: float) -> ee.Image:
@@ -496,7 +538,7 @@ def bands_single(
     product: str = Query(..., description="GEE image or collection id"),
     bands: str = Query(
         "",
-        description="Comma-separated band names (1..N). Leave empty or 'None' to export all bands."
+        description="Comma-separated band names (1..N). Leave empty or 'None' to export all bands.",
     ),
     bbox: str = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
     date: str = Query(..., description="YYYY-MM-DD"),
@@ -504,6 +546,7 @@ def bands_single(
     projection: str = Query("default"),
     tile_size: int = Query(1360, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_scale_offset: bool = Query(False),
     apply_cloud_mask: bool = Query(False),
 ):
     _init_ee()
@@ -520,6 +563,7 @@ def bands_single(
         region,
         date,
         cloud_mask=bool(apply_cloud_mask),
+        apply_scale_offset=bool(apply_scale_offset),
     )
 
     # Use first requested band as sample when available, otherwise let
@@ -578,6 +622,7 @@ def bands_composite(
     projection: str = Query("default"),
     tile_size: int = Query(1360, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_scale_offset: bool = Query(False),
     apply_cloud_mask: bool = Query(False),
 ):
     _init_ee()
@@ -602,6 +647,7 @@ def bands_composite(
         end_iso,
         reducer,
         cloud_mask=bool(apply_cloud_mask),
+        apply_scale_offset=bool(apply_scale_offset),
     )
 
     sample_band = ""
@@ -653,11 +699,19 @@ def rgb_single(
     projection: str = Query("default"),
     tile_size: int = Query(1360, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
-    apply_cloud_mask: bool = Query(False)
+    apply_cloud_mask: bool = Query(False),
+    apply_scale_offset: bool = Query(False),
 ):
     _init_ee()
     region = _parse_bbox(bbox)
-    img = _rgb_image_single(product, bands, region, date, cloud_mask=bool(apply_cloud_mask))
+    img = _rgb_image_single(
+        product,
+        bands,
+        region,
+        date,
+        cloud_mask=bool(apply_cloud_mask),
+        apply_scale_offset=bool(apply_scale_offset),
+    )
 
     # Resolve CRS & scale from native projection plus optional overrides
     first_band = bands.split(",")[0].strip()
@@ -703,7 +757,8 @@ def rgb_composite(
     projection: str = Query("default"),
     tile_size: int = Query(1360, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
-    apply_cloud_mask: bool = Query(False)
+    apply_cloud_mask: bool = Query(False),
+    apply_scale_offset: bool = Query(False),
 ):
     _init_ee()
     region = _parse_bbox(bbox)
@@ -712,7 +767,16 @@ def rgb_composite(
         end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
-    img = _rgb_image_composite(product, bands, region, start, end_iso, reducer, cloud_mask=bool(apply_cloud_mask))
+    img = _rgb_image_composite(
+        product,
+        bands,
+        region,
+        start,
+        end_iso,
+        reducer,
+        cloud_mask=bool(apply_cloud_mask),
+        apply_scale_offset=bool(apply_scale_offset),
+    )
 
     first_band = bands.split(",")[0].strip()
     crs_nat, scale_nat = _resolve_crs_scale(
