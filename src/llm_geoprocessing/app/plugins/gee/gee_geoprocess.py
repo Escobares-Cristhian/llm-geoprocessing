@@ -340,26 +340,6 @@ def _collection(product: str, region: ee.Geometry, start: str, end: str, cloud_m
         col = col.map(lambda i: _apply_cloud_mask_by_product(ee.Image(i), product))
     return col
 
-def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
-    b = [s.strip() for s in bands_csv.split(",")]
-    if len(b) != 3:
-        raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
-    start, end = _date_and_next(date)
-    img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
-    return img
-
-def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
-    b = [s.strip() for s in bands_csv.split(",")]
-    if len(b) != 3:
-        raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
-    col = _collection(product, region, start, end, cloud_mask=cloud_mask).select(b)
-    how = _resolve_reducer(reducer)
-    if how == "mosaic":
-        img = col.mosaic()
-    else:
-        img = getattr(col, how)()
-    return img.clip(region)
-
 # --- scale+offset helpers ---
 def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, float]:
     """
@@ -408,7 +388,79 @@ def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, f
     logger.debug(f"[_band_scale_offset] product~='{product}', band={band}, scale={s}, offset={o}")
     return s, o
 
-# --- ND helpers (scale+offset) ---
+# --- n-band image builders ---
+def _bands_image_single(
+    product: str,
+    bands_csv: str | None,
+    region: ee.Geometry,
+    date: str,
+    cloud_mask: bool = False
+) -> ee.Image:
+    """
+    Single-date raw multi-band image:
+    - If bands_csv is None/empty: export all available bands.
+    - Otherwise: export only the requested bands (1..N), in the given order.
+    """
+    start, end = _date_and_next(date)
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
+    img = col.mosaic().clip(region)
+
+    if bands_csv:
+        bands = [s.strip() for s in bands_csv.split(",") if s.strip()]
+        if bands:
+            img = img.select(bands)
+
+    return img
+
+def _bands_image_composite(
+    product: str,
+    bands_csv: str | None,
+    region: ee.Geometry,
+    start: str,
+    end: str,
+    reducer: str,
+    cloud_mask: bool = False,
+) -> ee.Image:
+    """
+    Multi-date raw multi-band composite image:
+    - If bands_csv is None/empty: export all available bands.
+    - Otherwise: export only the requested bands (1..N), in the given order.
+    """
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask)
+
+    if bands_csv:
+        bands = [s.strip() for s in bands_csv.split(",") if s.strip()]
+        if bands:
+            col = col.select(bands)
+
+    how = _resolve_reducer(reducer)
+    img = col.mosaic() if how == "mosaic" else getattr(col, how)()
+    return img.clip(region)
+
+
+# --- RGB image builders ---
+def _rgb_image_single(product: str, bands_csv: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
+    b = [s.strip() for s in bands_csv.split(",")]
+    if len(b) != 3:
+        raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
+    start, end = _date_and_next(date)
+    img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
+    return img
+
+def _rgb_image_composite(product: str, bands_csv: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
+    b = [s.strip() for s in bands_csv.split(",")]
+    if len(b) != 3:
+        raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
+    col = _collection(product, region, start, end, cloud_mask=cloud_mask).select(b)
+    how = _resolve_reducer(reducer)
+    if how == "mosaic":
+        img = col.mosaic()
+    else:
+        img = getattr(col, how)()
+    return img.clip(region)
+
+
+# --- Normalized Difference Index builders ---
 def _scaled_nd(img: ee.Image, b1: str, b2: str, s1: float, o1: float, s2: float, o2: float) -> ee.Image:
     return img.expression(
         '((b1*s1 + o1) - (b2*s2 + o2)) / ((b1*s1 + o1) + (b2*s2 + o2))',
@@ -417,7 +469,6 @@ def _scaled_nd(img: ee.Image, b1: str, b2: str, s1: float, o1: float, s2: float,
          's2': ee.Number(s2),  'o2': ee.Number(o2)}
     ).rename('nd')
 
-# --- ND image builders ---
 def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: str, cloud_mask: bool = False) -> ee.Image:
     start, end = _date_and_next(date)
     col  = _collection(product, region, start, end, cloud_mask=cloud_mask)
@@ -440,16 +491,170 @@ def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, sta
 
 
 # --- Endpoints (return a signed URL for GeoTIFF download) ---
+@app.get("/tif/bands_single")
+def bands_single(
+    product: str = Query(..., description="GEE image or collection id"),
+    bands: str = Query(
+        "",
+        description="Comma-separated band names (1..N). Leave empty or 'None' to export all bands."
+    ),
+    bbox: str = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    date: str = Query(..., description="YYYY-MM-DD"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False),
+):
+    _init_ee()
+    region = _parse_bbox(bbox)
+
+    # Interpret bands parameter: empty / 'none' / 'all' -> all bands
+    bands_arg = bands.strip()
+    if bands_arg.lower() in ("", "none", "all"):
+        bands_arg = None
+
+    img = _bands_image_single(
+        product,
+        bands_arg,
+        region,
+        date,
+        cloud_mask=bool(apply_cloud_mask),
+    )
+
+    # Use first requested band as sample when available, otherwise let
+    # _infer_native_proj fall back to the first band in the image.
+    sample_band = ""
+    if bands_arg:
+        sample_band = bands_arg.split(",")[0].strip()
+
+    start_iso, end_iso = _date_and_next(date)
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=sample_band,
+        start=start_iso,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="bands_single",
+    )
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    logger.debug(f"[bands_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}",
+        )
+
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append(
+            {"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url}
+        )
+
+    return {"tiling": meta, "tiles": out_tiles}
+
+@app.get("/tif/bands_composite")
+def bands_composite(
+    product: str = Query(..., description="GEE collection id"),
+    bands: str = Query(
+        "",
+        description="Comma-separated band names (1..N). Leave empty or 'None' to export all bands.",
+    ),
+    bbox: str = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    start: str = Query(..., description="YYYY-MM-DD inclusive"),
+    end: str = Query(..., description="YYYY-MM-DD inclusive"),
+    reducer: str = Query("mean"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False),
+):
+    _init_ee()
+    region = _parse_bbox(bbox)
+
+    # end inclusive
+    try:
+        end_iso = (datetime.strptime(end, "%Y-%m-%d").date() + timedelta(days=1)).isoformat()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid end date. Use 'YYYY-MM-DD'.")
+
+    # Normalize "all bands" case
+    bands_arg = bands.strip()
+    if bands_arg.lower() in ("", "none", "all"):
+        bands_arg = None
+
+    img = _bands_image_composite(
+        product,
+        bands_arg,
+        region,
+        start,
+        end_iso,
+        reducer,
+        cloud_mask=bool(apply_cloud_mask),
+    )
+
+    sample_band = ""
+    if bands_arg:
+        sample_band = bands_arg.split(",")[0].strip()
+
+    crs_nat, scale_nat = _resolve_crs_scale(
+        product=product,
+        region=region,
+        sample_band=sample_band,
+        start=start,
+        end=end_iso,
+        projection=projection,
+        resolution=resolution,
+        log_tag="bands_composite",
+    )
+
+    logger.debug(f"[bands_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    if len(tiles) > max_tiles:
+        logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
+        raise HTTPException(
+            status_code=400,
+            detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}",
+        )
+
+    common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
+
+    out_tiles = []
+    for t in tiles:
+        params = dict(common)
+        params["region"] = t["geom"]
+        url = img.getDownloadURL(params)
+        out_tiles.append(
+            {"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url}
+        )
+
+    return {"tiling": meta, "tiles": out_tiles}
+
 @app.get("/tif/rgb_single")
-def rgb_single(product: str = Query(..., description="GEE image or collection id"),
-               bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
-               bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-               date: str    = Query(..., description="YYYY-MM-DD"),
-               resolution: str = Query("default"),
-               projection: str = Query("default"),
-               tile_size: int = Query(1360, description="tile size in pixels (edge)"),
-               max_tiles: int = Query(25, description="safety cap on total tiles"),
-               apply_cloud_mask: bool = Query(False)):
+def rgb_single(
+    product: str = Query(..., description="GEE image or collection id"),
+    bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
+    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    date: str    = Query(..., description="YYYY-MM-DD"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False)
+):
     _init_ee()
     region = _parse_bbox(bbox)
     img = _rgb_image_single(product, bands, region, date, cloud_mask=bool(apply_cloud_mask))
@@ -487,17 +692,19 @@ def rgb_single(product: str = Query(..., description="GEE image or collection id
     return {"tiling": meta, "tiles": out_tiles}
 
 @app.get("/tif/rgb_composite")
-def rgb_composite(product: str = Query(..., description="GEE collection id"),
-                  bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
-                  bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-                  start: str   = Query(..., description="YYYY-MM-DD inclusive"),
-                  end: str     = Query(..., description="YYYY-MM-DD inclusive"),
-                  reducer: str = Query("mean"),
-                  resolution: str = Query("default"),
-                  projection: str = Query("default"),
-                  tile_size: int = Query(1360, description="tile size in pixels (edge)"),
-                  max_tiles: int = Query(25, description="safety cap on total tiles"),
-                  apply_cloud_mask: bool = Query(False)):
+def rgb_composite(
+    product: str = Query(..., description="GEE collection id"),
+    bands: str   = Query(..., description="Comma-separated 3 bands in RGB order"),
+    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+    end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+    reducer: str = Query("mean"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False)
+):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
@@ -541,17 +748,19 @@ def rgb_composite(product: str = Query(..., description="GEE collection id"),
     return {"tiling": meta, "tiles": out_tiles}
 
 @app.get("/tif/index_single")
-def index_single(product: str = Query(..., description="GEE image or collection id"),
-                 band1: str   = Query(..., description="First band for ND numerator"),
-                 band2: str   = Query(..., description="Second band for ND denominator"),
-                 bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-                 date: str    = Query(..., description="YYYY-MM-DD"),
-                 palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
-                 resolution: str = Query("default"),
-                 projection: str = Query("default"),
-                 tile_size: int = Query(2400, description="tile size in pixels (edge)"),
-                 max_tiles: int = Query(25, description="safety cap on total tiles"),
-                 apply_cloud_mask: bool = Query(False)):
+def index_single(
+    product: str = Query(..., description="GEE image or collection id"),
+    band1: str   = Query(..., description="First band for ND numerator"),
+    band2: str   = Query(..., description="Second band for ND denominator"),
+    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    date: str    = Query(..., description="YYYY-MM-DD"),
+    palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False)
+):
     _init_ee()
     region = _parse_bbox(bbox)
     img = _nd_image_single(product, band1, band2, region, date, cloud_mask=bool(apply_cloud_mask))
@@ -586,20 +795,21 @@ def index_single(product: str = Query(..., description="GEE image or collection 
 
     return {"tiling": meta, "tiles": out_tiles}
 
-
 @app.get("/tif/index_composite")
-def index_composite(product: str = Query(..., description="GEE collection id"),
-                    band1: str   = Query(..., description="First band for ND numerator"),
-                    band2: str   = Query(..., description="Second band for ND denominator"),
-                    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
-                    start: str   = Query(..., description="YYYY-MM-DD inclusive"),
-                    end: str     = Query(..., description="YYYY-MM-DD inclusive"),
-                    reducer: str = Query("mean"),
-                    resolution: str = Query("default"),
-                    projection: str = Query("default"),
-                    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
-                    max_tiles: int = Query(25, description="safety cap on total tiles"),
-                    apply_cloud_mask: bool = Query(False)):
+def index_composite(
+    product: str = Query(..., description="GEE collection id"),
+    band1: str   = Query(..., description="First band for ND numerator"),
+    band2: str   = Query(..., description="Second band for ND denominator"),
+    bbox: str    = Query(..., description="xmin,ymin,xmax,ymax (lon/lat)"),
+    start: str   = Query(..., description="YYYY-MM-DD inclusive"),
+    end: str     = Query(..., description="YYYY-MM-DD inclusive"),
+    reducer: str = Query("mean"),
+    resolution: str = Query("default"),
+    projection: str = Query("default"),
+    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
+    max_tiles: int = Query(25, description="safety cap on total tiles"),
+    apply_cloud_mask: bool = Query(False)
+):
     _init_ee()
     region = _parse_bbox(bbox)
     # end inclusive
