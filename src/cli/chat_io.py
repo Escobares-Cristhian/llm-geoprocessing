@@ -7,8 +7,10 @@ import shutil
 import subprocess
 from pathlib import Path
 
+import folium
+
 # Local paths for Leaflet assets inside the container.
-# You will put leaflet.js / leaflet.css there in the Docker image.
+# You should put leaflet.js / leaflet.css there in the Docker image.
 _LEAFLET_JS_SRC = os.environ.get("LEAFLET_JS_SRC", "/app/static/leaflet/leaflet.js")
 _LEAFLET_CSS_SRC = os.environ.get("LEAFLET_CSS_SRC", "/app/static/leaflet/leaflet.css")
 
@@ -204,140 +206,77 @@ def _ensure_leaflet_assets(html_dir: Path) -> bool:
     return ok
 
 
-def _build_leaflet_html(
+def _build_initial_basemap(html_path: Path) -> None:
+    """
+    Build an initial Folium map with only a basemap,
+    centered over Argentina and covering the whole country.
+    """
+    # Rough bounding box for Argentina
+    south, west, north, east = -55.1, -73.6, -21.8, -53.6
+    center = [(south + north) / 2.0, (west + east) / 2.0]
+
+    m = folium.Map(
+        location=center,
+        zoom_start=4,
+        control_scale=True,
+        tiles="OpenStreetMap",
+    )
+    m.fit_bounds([[south, west], [north, east]])
+    m.save(html_path)
+
+    # Rewrite Leaflet URLs to local files if available
+    if _ensure_leaflet_assets(html_path.parent):
+        txt = html_path.read_text(encoding="utf-8")
+        txt = re.sub(r"https://[^\"]*leaflet\.js", "leaflet.js", txt)
+        txt = re.sub(r"https://[^\"]*leaflet\.css", "leaflet.css", txt)
+        html_path.write_text(txt, encoding="utf-8")
+
+
+
+def _build_folium_map(
     layers: list[dict],
-    title: str = "GeoLLM Map",
-    use_leaflet: bool = True,
-) -> str:
+    title: str,
+    html_path: Path,
+) -> None:
     """
-    Full Leaflet HTML with basemap + image/vector overlays.
-    If use_leaflet=False, falls back to a simple <img> viewer.
+    Build a Folium map with all layers and save it to html_path.
     """
-    if not use_leaflet:
-        # Simple fallback: show first raster as <img>, or nothing.
-        img_url = None
-        for layer in layers:
-            if layer.get("type") == "raster":
-                img_url = layer.get("url")
-                break
-        if not img_url:
-            img_url = ""
-        return f"""<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>{title}</title>
-    <style>
-      html, body {{
-        margin: 0;
-        padding: 0;
-        height: 100%;
-        width: 100%;
-        background-color: #000;
-      }}
-      img {{
-        display: block;
-        max-width: 100%;
-        max-height: 100%;
-        margin: 0 auto;
-      }}
-    </style>
-  </head>
-  <body>
-    <img src="{img_url}" alt="Map image" />
-  </body>
-</html>
-"""
+    if not layers:
+        m = folium.Map(location=[0, 0], zoom_start=2, control_scale=True)
+        m.save(html_path)
+        return
 
-    if layers:
-        south = min(layer["south"] for layer in layers)
-        west = min(layer["west"] for layer in layers)
-        north = max(layer["north"] for layer in layers)
-        east = max(layer["east"] for layer in layers)
-    else:
-        south, west, north, east = -90.0, -180.0, 90.0, 180.0
+    south = min(layer["south"] for layer in layers)
+    west = min(layer["west"] for layer in layers)
+    north = max(layer["north"] for layer in layers)
+    east = max(layer["east"] for layer in layers)
+    center = [(south + north) / 2.0, (west + east) / 2.0]
 
-    layers_json = json.dumps(layers)
+    m = folium.Map(location=center, zoom_start=8, control_scale=True, tiles="OpenStreetMap")
 
-    return f"""<!DOCTYPE html>
-<html>
-  <head>
-    <meta charset="utf-8" />
-    <title>{title}</title>
-    <meta name="viewport" content="initial-scale=1,maximum-scale=1,user-scalable=no" />
-    <link rel="stylesheet" href="leaflet.css" />
-    <script src="leaflet.js"></script>
-    <style>
-      html, body, #map {{
-        height: 100%;
-        width: 100%;
-        margin: 0;
-        padding: 0;
-      }}
-    </style>
-  </head>
-  <body>
-    <div id="map"></div>
-    <script>
-      var map = L.map('map');
+    for layer in layers:
+        if layer["type"] == "raster":
+            bounds = [
+                [layer["south"], layer["west"]],
+                [layer["north"], layer["east"]],
+            ]
+            folium.raster_layers.ImageOverlay(
+                image=layer["url"],
+                bounds=bounds,
+                opacity=0.8,
+                name=layer["name"],
+                interactive=True,
+                cross_origin=False,
+            ).add_to(m)
+        elif layer["type"] == "vector":
+            folium.GeoJson(
+                data=layer["geojson"],
+                name=layer["name"],
+            ).add_to(m)
 
-      var base = L.tileLayer(
-        'https://{{s}}.tile.openstreetmap.org/{{z}}/{{x}}/{{y}}.png',
-        {{
-          maxZoom: 19,
-          attribution: '&copy; OpenStreetMap contributors'
-        }}
-      ).addTo(map);
-
-      var layers = {layers_json};
-      var overlays = {{}};
-      var overallBounds = null;
-
-      layers.forEach(function (layer) {{
-        if (layer.type === 'raster') {{
-          var bounds = L.latLngBounds(
-            [ [layer.south, layer.west], [layer.north, layer.east] ]
-          );
-          var img = L.imageOverlay(layer.url, bounds, {{ opacity: 0.8 }});
-          img.addTo(map);
-          overlays[layer.name] = img;
-          if (overallBounds === null) {{
-            overallBounds = bounds;
-          }} else {{
-            overallBounds = overallBounds.extend(bounds);
-          }}
-        }} else if (layer.type === 'vector') {{
-          var v = L.geoJSON(layer.geojson, {{
-            style: function () {{
-              return {{ weight: 2 }};
-            }}
-          }});
-          v.addTo(map);
-          overlays[layer.name] = v;
-          var vb = v.getBounds();
-          if (vb.isValid()) {{
-            if (overallBounds === null) {{
-              overallBounds = vb;
-            }} else {{
-              overallBounds = overallBounds.extend(vb);
-            }}
-          }}
-        }}
-      }});
-
-      if (overallBounds) {{
-        map.fitBounds(overallBounds);
-      }} else {{
-        map.setView([0, 0], 2);
-      }}
-
-      if (Object.keys(overlays).length > 0) {{
-        L.control.layers(null, overlays, {{ collapsed: false }}).addTo(map);
-      }}
-    </script>
-  </body>
-</html>
-"""
+    folium.LayerControl(collapsed=False).add_to(m)
+    m.fit_bounds([[south, west], [north, east]])
+    m.save(html_path)
 
 
 def _open_leaflet_html(
@@ -346,7 +285,7 @@ def _open_leaflet_html(
     title: str = "GeoLLM Map",
 ) -> Path:
     """
-    Create a Leaflet HTML viewer that shows all given products (raster + vector)
+    Create a Folium-based HTML viewer that shows all given products (raster + vector)
     and return the HTML path.
     """
     path = Path(image_path).resolve()
@@ -385,7 +324,7 @@ def _open_leaflet_html(
                 west, south, east, north = bounds
 
             view_path = _ensure_view_image(p)
-            url = os.path.relpath(view_path, html_dir).replace(os.sep, "/")
+            url = str(view_path)
 
             layers.append(
                 {
@@ -432,7 +371,7 @@ def _open_leaflet_html(
         else:
             west, south, east, north = bounds
         view_path = _ensure_view_image(path)
-        url = os.path.relpath(view_path, html_dir).replace(os.sep, "/")
+        url = str(view_path)
         layers.append(
             {
                 "type": "raster",
@@ -445,9 +384,15 @@ def _open_leaflet_html(
             }
         )
 
-    use_leaflet = _ensure_leaflet_assets(html_dir)
-    html = _build_leaflet_html(layers=layers, title=title, use_leaflet=use_leaflet)
-    html_path.write_text(html, encoding="utf-8")
+    _build_folium_map(layers=layers, title=title, html_path=html_path)
+
+    # If local Leaflet assets exist, rewrite Leaflet JS/CSS references
+    if _ensure_leaflet_assets(html_dir):
+        txt = html_path.read_text(encoding="utf-8")
+        txt = re.sub(r"https://[^\"]*leaflet\.js", "leaflet.js", txt)
+        txt = re.sub(r"https://[^\"]*leaflet\.css", "leaflet.css", txt)
+        html_path.write_text(txt, encoding="utf-8")
+
     return html_path
 
 
@@ -472,7 +417,7 @@ class ChatIO:
         self._text = None
         self._entry = None
         self._send_button = None
-        self._view = None  # web view for Leaflet
+        self._view = None  # web view for Folium map
 
         if self.use_gui:
             # No fallback: if this fails, let it raise
@@ -488,6 +433,7 @@ class ChatIO:
             )
             from PyQt5.QtCore import Qt
             from PyQt5.QtWebEngineWidgets import QWebEngineView
+            from PyQt5.QtCore import QUrl
 
             self._app = QApplication.instance()
             if self._app is None:
@@ -517,13 +463,15 @@ class ChatIO:
 
             left_layout.addLayout(entry_layout)
 
-            # Right: Leaflet web view
+            # Right: Folium map in QWebEngineView
             self._view = QWebEngineView()
-            self._view.setHtml(
-                "<html><body><h3>Map panel ready</h3><p>"
-                "When a product path is detected, the map will be loaded here."
-                "</p></body></html>"
-            )
+            
+            # Build an initial Folium basemap centered over Argentina
+            initial_html = Path("/tmp/geollm_initial_map.html")
+            _build_initial_basemap(initial_html)
+
+            url = QUrl.fromLocalFile(str(initial_html))
+            self._view.load(url)
 
             splitter.addWidget(left_widget)
             splitter.addWidget(self._view)
@@ -589,8 +537,8 @@ class ChatIO:
 
     def _maybe_open_viewer(self, text: str) -> None:
         """
-        Look for absolute raster/vector paths in assistant messages, keep a list
-        of all products for the current session, and refresh the Leaflet
+        Look for raster/vector paths in assistant messages, keep a list
+        of all products for the current session, and refresh the Folium
         viewer with all of them (GUI only).
         """
         if not self.use_gui or self._view is None:
@@ -598,9 +546,9 @@ class ChatIO:
 
         from PyQt5.QtCore import QUrl
 
-        # Match absolute Unix-style paths ending in raster/vector extensions,
+        # Match absolute or relative paths ending in raster/vector extensions,
         # but NOT things like "file.tif.html" (negative lookahead for '.').
-        pattern = r"(/[\w\-/\.]+?\.(?:tif|tiff|png|jpg|jpeg|gpkg|shp|geojson|json))(?!\.)"
+        pattern = r"([\w\-/\.]+?\.(?:tif|tiff|png|jpg|jpeg|gpkg|shp|geojson|json))(?!\.)"
         matches = re.findall(pattern, text)
 
         if not matches:
@@ -623,7 +571,6 @@ class ChatIO:
             last_path,
             extra_paths=self._session_products[:-1],
         )
-        from PyQt5.QtCore import QUrl as _QUrl  # avoid re-import name clash in type-checkers
-        url = _QUrl.fromLocalFile(str(html_path))
+        url = QUrl.fromLocalFile(str(html_path))
         self._view.load(url)
         self._app.processEvents()

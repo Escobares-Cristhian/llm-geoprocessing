@@ -15,3 +15,4 @@ ipykernel>=6
 # gui
 PyQt5>=5.15.7
 PyQtWebEngine>=5.15.7
+folium>=0.16
