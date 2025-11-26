@@ -11,3 +11,7 @@ ruff>=0.5
 black>=24
 mypy>=1.9
 ipykernel>=6
+
+# gui
+PyQt5>=5.15.7
+PyQtWebEngine>=5.15.7

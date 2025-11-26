@@ -401,7 +401,7 @@ def _apply_scale_offset_multi(img: ee.Image, product: str, bands: list[str] | No
         scaled.append(scaled_band)
 
     out = ee.Image.cat(scaled)
-    return out.copyProperties(img, img.propertyNames())
+    return ee.Image(out.copyProperties(img, img.propertyNames()))
 
 
 # --- n-band image builders ---
@@ -426,7 +426,7 @@ def _bands_image_single(
     if apply_scale_offset:
         img = _apply_scale_offset_multi(img, product, bands_list)
 
-    return ee.Image(img)
+    return img
 
 def _bands_image_composite(
     product: str,
@@ -453,7 +453,7 @@ def _bands_image_composite(
     if apply_scale_offset:
         img = _apply_scale_offset_multi(img, product, bands_list)
 
-    return ee.Image(img)
+    return img
 
 
 # --- RGB image builders ---
