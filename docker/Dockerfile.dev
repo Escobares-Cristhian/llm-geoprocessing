@@ -1,15 +1,25 @@
 FROM python:3.12-slim
 
+# Basic Python/env flags
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1 \
     PIP_NO_CACHE_DIR=1
 
-# System deps: git, curl, Tkinter, GDAL, Qt / X stack for QtWebEngine
+WORKDIR /app
+
+# System dependencies for dev:
+# - git/curl: convenience tools
+# - python3-venv: for virtualenv
+# - python3-tk: Tk support (if you use it anywhere)
+# - gdal-bin/libgdal-dev: for rasterio/GDAL tools
+# - Full X11/GL/audio/glib stack so PyQt5 / QtWebEngine can render the GUI in Docker
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git \
     curl \
+    python3-venv \
     python3-tk \
     gdal-bin \
+    libgdal-dev \
     libgl1 \
     libglib2.0-0 \
     libdbus-1-3 \
@@ -49,21 +59,29 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
  && ldconfig \
  && rm -rf /var/lib/apt/lists/*
 
-# Set working directory
-WORKDIR /app
+# Install Python deps into a venv (including PyQt5 / PyQtWebEngine via pip)
+COPY requirements-dev.txt ./requirements-dev.txt
 
-# Install only deps; source code will be bind-mounted
-COPY requirements-dev.txt ./
-RUN pip install --upgrade pip && pip install -r requirements-dev.txt
+RUN python -m venv /venv && \
+    /venv/bin/pip install --upgrade pip && \
+    /venv/bin/pip install -r requirements-dev.txt
 
-# QtWebEngine can’t use sandbox as root in Docker
-ENV QTWEBENGINE_DISABLE_SANDBOX=1
+# Make venv the default Python and add src to PYTHONPATH
+ENV PATH="/venv/bin:${PATH}" \
+    PYTHONPATH=/app/src
 
-# Force software OpenGL inside Docker (no real GPU)
-ENV LIBGL_ALWAYS_SOFTWARE=1
-ENV QTWEBENGINE_CHROMIUM_FLAGS="--disable-gpu --disable-gpu-compositing"
+# EntryPoint: start Voila geemap app (if notebook exists) then exec passed command
+# Notebook is located at /app/src/cli/geemap_app.ipynb inside the container
+RUN printf '#!/usr/bin/env bash\n'\
+'set -e\n'\
+'NB="/app/src/cli/geemap_app.ipynb"\n'\
+'if [ -f "$NB" ]; then\n'\
+'  echo "Starting Voila $NB on port 8866..."\n'\
+'  voila "$NB" --port=8866 --no-browser --ip=0.0.0.0 &\n'\
+'else\n'\
+'  echo "Voila notebook not found at $NB, skipping Voila startup."\n'\
+'fi\n'\
+'exec "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
 
-# Let Python see your bind-mounted src/ without editable installs
-ENV PYTHONPATH=/app/src
-
+ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]

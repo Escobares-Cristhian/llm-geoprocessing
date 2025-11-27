@@ -20,11 +20,22 @@ services:
       - ../gee_out:/gee_out          # <-- host folder bind-mounted here
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
     env_file:
-      - ../.env             # OPENAI_API_KEY, GEMINI_API_KEY, etc.
-    command: bash           # or: ["llmgeo", "--help"]
+      - ../.env              # OPENAI_API_KEY, GEMINI_API_KEY, etc.
+    # Let the Dockerfile ENTRYPOINT start Voila automatically.
+    # Default command is "bash"; when you run:
+    #   docker compose -f docker/compose.dev.yaml run --rm --service-ports geollm python -m llm_geoprocessing.app.main
+    # ENTRYPOINT will first start Voila, then exec the python command.
+    command: bash
     environment:
       GEE_PLUGIN_URL: http://gee:8000
       GEO_OUT_DIR: /gee_out          # <-- tell your code to write here
       DISPLAY: ${DISPLAY}
+      QTWEBENGINE_DISABLE_SANDBOX: "1"   # needed when running QtWebEngine as root in Docker
+      GEOMAP_URL: "http://127.0.0.1:8866"  # URL of the geemap/Voila app used by ChatIO (inside container)
+      XDG_RUNTIME_DIR: /tmp/runtime-root
+      LIBGL_ALWAYS_SOFTWARE: "1"
+      QTWEBENGINE_CHROMIUM_FLAGS: "--disable-gpu --disable-software-rasterizer"
+    ports:
+      - "8866:8866"          # expose Voila so 127.0.0.1:8866 works on the host
     depends_on:
       - gee
