@@ -12,20 +12,38 @@ black>=24
 mypy>=1.9
 ipykernel>=6
 
-# gui
+# gui (Qt chat window)
 PyQt5>=5.15.7
 PyQtWebEngine>=5.15.7
-folium>=0.16
 
-# mapping and visualization
-rasterio>=1.4.3
-numpy>=2.3.5
-matplotlib>=3.10.7
-pillow>=12
+# --- MODERN STACK (STRICT PINNING) ---
+# We anchor everything to JupyterLab 4.2.5, which is extremely stable.
+jupyterlab==4.2.5
+notebook==7.2.2
 
-# geemap / Jupyter map UI
-leafmap>=0.57.9
-ipyleaflet>=0.18.0
-ipywidgets>=8.0.0
-voila>=0.5.0
-notebook>=7.0.0
+# We pin Voila to 0.5.5 because 0.5.7+ can trigger version conflicts
+voila==0.5.5
+
+# We use compatible Widget versions
+ipywidgets==8.1.5
+jupyterlab_widgets==3.0.13
+
+# Mapping: 0.19.2 works well with JLab 4.2
+ipyleaflet==0.19.2
+# We downgrade Leafmap slightly to ensure it doesn't pull bleeding-edge deps
+leafmap==0.39.0
+ipyevents==2.0.2
+
+# --- LOCAL RASTER SUPPORT ---
+# Required for viewing local GeoTIFFs in Leafmap
+localtileserver>=0.10.0
+# Helper to serve tiles
+flask>=3.0.0
+# Optional but recommended for performance
+rio-cogeo>=5.0.0
+
+# Geospatial
+xarray>=2023.11.0
+rasterio>=1.4.0
+geopandas>=0.14.0
+shapely>=2.1.0
