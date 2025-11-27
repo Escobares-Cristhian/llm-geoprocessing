@@ -31,7 +31,7 @@ services:
       GEO_OUT_DIR: /gee_out          # <-- tell your code to write here
       DISPLAY: ${DISPLAY}
       QTWEBENGINE_DISABLE_SANDBOX: "1"   # needed when running QtWebEngine as root in Docker
-      GEOMAP_URL: "http://127.0.0.1:8866"  # URL of the geemap/Voila app used by ChatIO (inside container)
+      GEOMAP_URL: "http://127.0.0.1:8866"  # URL of the leafmap/Voila app used by ChatIO (inside container)
       XDG_RUNTIME_DIR: /tmp/runtime-root
       LIBGL_ALWAYS_SOFTWARE: "1"
       QTWEBENGINE_CHROMIUM_FLAGS: "--disable-gpu --disable-software-rasterizer"

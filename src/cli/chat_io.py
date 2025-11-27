@@ -25,7 +25,7 @@ class ChatIO:
         self._text = None
         self._entry = None
         self._send_button = None
-        self._view = None  # right-side web view (geemap / Jupyter app)
+        self._view = None  # right-side web view (leafmap / Jupyter app)
 
         if self.use_gui:
             # No fallback: if this fails, let it raise
@@ -70,10 +70,10 @@ class ChatIO:
 
             left_layout.addLayout(entry_layout)
 
-            # Right: web view with external geemap/Jupyter app
+            # Right: web view with external leafmap/Jupyter app
             self._view = QWebEngineView()
 
-            # URL of the map UI (e.g. Voila / Jupyter app running geemap)
+            # URL of the map UI (e.g. Voila / Jupyter app running leafmap)
             map_url = os.environ.get("GEOMAP_URL", "http://127.0.0.1:8866")
             self._view.load(QUrl(map_url))
 
@@ -143,10 +143,10 @@ class ChatIO:
     def _maybe_open_viewer(self, text: str) -> None:
         """
         Hook kept for compatibility.
-        In the geemap/Jupyter-based architecture, the right-hand map UI
+        In the leafmap/Jupyter-based architecture, the right-hand map UI
         is an external web app, so this method does not open files itself.
         You can still parse product paths here and, for example, write
-        a small config file in a shared folder if you want the geemap app
+        a small config file in a shared folder if you want the leafmap app
         to react to the "last product" from the chat.
         """
         # Example: collect product paths but do nothing else.
