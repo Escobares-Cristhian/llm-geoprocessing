@@ -59,6 +59,9 @@ def _guess_default_scale(product: str) -> float:
         return 10.0
     if "LANDSAT" in p or "LC08" in p or "LC09" in p or "LT05" in p:
         return 30.0
+    # Handle MODIS Thermal (1km) specifically
+    if "MOD11" in p or "MYD11" in p:
+        return 1000.0
     if "MODIS" in p:
         return 250.0
     return 30.0
@@ -380,6 +383,13 @@ def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, f
         # Sentinel-2 SR (harmonized or not) — reflectance is scale 1e-4, no offset
         elif 'COPERNICUS/S2_SR' in pid:
             s, o = 1e-4, 0.0
+
+        # MODIS LST (Temperature & Emissivity)
+        elif 'MODIS/' in pid and ('MOD11A1' in pid or 'MYD11A1' in pid):
+            if 'LST_' in band:
+                s, o = 0.02, 0.0  # Converts DN to Kelvin
+            elif 'Emis_' in band:
+                s, o = 0.002, 0.49 # Specific scale/offset for emissivity bands
 
         # Final fallback
         if s is None: s = 1.0
