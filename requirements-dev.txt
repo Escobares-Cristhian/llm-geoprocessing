@@ -16,23 +16,21 @@ ipykernel>=6
 PyQt5>=5.15.7
 PyQtWebEngine>=5.15.7
 
-# --- MODERN STACK (STRICT PINNING) ---
-# We anchor everything to JupyterLab 4.2.5, which is extremely stable.
+# --- JUPYTER / VOILA / WIDGETS STACK FOR LEAFMAP ---
+# Jupyter server (classic) and Lab
+notebook==7.2.1
 jupyterlab==4.2.5
-notebook==7.2.2
 
-# We pin Voila to 0.5.5 because 0.5.7+ can trigger version conflicts
-voila==0.5.5
+# Widgets (front-end) for Lab 4 / Notebook 7
+ipywidgets==8.1.2
+jupyterlab_widgets==3.0.15
 
-# We use compatible Widget versions
-ipywidgets==8.1.5
-jupyterlab_widgets==3.0.13
+# Voila, using the Lab 4 stack
+voila==0.5.7
 
-# Mapping: 0.19.2 works well with JLab 4.2
-ipyleaflet==0.19.2
-# We downgrade Leafmap slightly to ensure it doesn't pull bleeding-edge deps
-leafmap==0.39.0
-ipyevents==2.0.2
+# Map widget stack
+ipyleaflet==0.20.0
+leafmap==0.35.0
 
 # --- LOCAL RASTER SUPPORT ---
 # Required for viewing local GeoTIFFs in Leafmap
