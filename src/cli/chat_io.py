@@ -2,6 +2,11 @@
 
 import os
 import re
+import threading
+import time
+
+# Active GUI ChatIO instance (if any).
+_CURRENT_CHAT_IO = None
 
 
 class ChatIO:
@@ -89,6 +94,10 @@ class ChatIO:
             self._window.resize(1200, 700)
             self._window.show()
 
+            # Register this instance as the active GUI ChatIO
+            global _CURRENT_CHAT_IO
+            _CURRENT_CHAT_IO = self
+
     def ask_user_input(self) -> str | None:
         if not self.use_gui:
             return input(f"\n{self.user_name}: ")
@@ -156,3 +165,51 @@ class ChatIO:
             abs_path = os.path.abspath(m)
             if abs_path not in self._session_products:
                 self._session_products.append(abs_path)
+
+
+def _run_blocking_with_gui_events(func, *args, **kwargs):
+    """Run a blocking function while keeping the Qt GUI responsive.
+
+    Used to wrap LLM/API calls so that chat.send_message(prompt) does not
+    freeze the window, without changing call sites.
+    """
+    ci = _CURRENT_CHAT_IO
+    if ci is None or not ci.use_gui or ci._app is None:
+        return func(*args, **kwargs)
+
+    result = {"value": None, "error": None}
+
+    def _worker():
+        try:
+            result["value"] = func(*args, **kwargs)
+        except Exception as e:
+            result["error"] = e
+
+    thread = threading.Thread(target=_worker, daemon=True)
+    thread.start()
+
+    # Pump events at a modest rate while we wait for the worker.
+    POLL_INTERVAL = 0.2  # ~5 UI updates per second
+
+    while thread.is_alive():
+        ci._app.processEvents()
+        thread.join(POLL_INTERVAL)
+
+    if result["error"] is not None:
+        raise result["error"]
+    return result["value"]
+
+
+# Patch Chatbot.send_message so chat.send_message(prompt) stays unchanged
+try:
+    from llm_geoprocessing.app.chatbot.chatbot import Chatbot  # type: ignore[attr-defined]
+except Exception:
+    Chatbot = None  # type: ignore[assignment]
+
+if Chatbot is not None:
+    _orig_send_message = Chatbot.send_message
+
+    def _patched_send_message(self, msg: str) -> str:
+        return _run_blocking_with_gui_events(_orig_send_message, self, msg)
+
+    Chatbot.send_message = _patched_send_message
