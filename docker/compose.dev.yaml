@@ -25,14 +25,5 @@ services:
       GEE_PLUGIN_URL: http://gee:8000
       GEO_OUT_DIR: /gee_out
       DISPLAY: ${DISPLAY}
-      QTWEBENGINE_DISABLE_SANDBOX: "1"
-      GEOMAP_URL: "http://127.0.0.1:8866"
-      XDG_RUNTIME_DIR: /tmp/runtime-root
-      LIBGL_ALWAYS_SOFTWARE: "1"
-      QTWEBENGINE_CHROMIUM_FLAGS: "--disable-gpu --disable-software-rasterizer"
-      # FORCE localtileserver to listen on 0.0.0.0 so the internal browser works
-      LOCALTILESERVER_HOST: "0.0.0.0"
-    ports:
-      - "8866:8866"
     depends_on:
       - gee

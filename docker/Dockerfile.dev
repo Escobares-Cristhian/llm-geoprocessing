@@ -1,68 +1,41 @@
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
-    PYTHONUNBUFFERED=1 \
-    PIP_NO_CACHE_DIR=1
+    PYTHONUNBUFFERED=1
 WORKDIR /app
 
-# System dependencies
+# System dependencies (QtWebEngine + GDAL + X11 bits for PyQt5 QWebEngineView)
 RUN apt-get update && apt-get install -y --no-install-recommends \
     git curl python3-venv python3-tk gdal-bin libgdal-dev \
+    python3-pyqt5 python3-pyqt5.qtwebengine \
     libgl1 libglib2.0-0 libdbus-1-3 libx11-6 libx11-xcb1 libxext6 \
     libxrender1 libxcomposite1 libxdamage1 libxfixes3 libsm6 libice6 \
     libfontconfig1 libfreetype6 libnss3 libxss1 libxtst6 libxrandr2 \
     libxi6 libasound2 libxkbcommon0 libxkbcommon-x11-0 libxcb1 \
     libxcb-glx0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
     libxcb-randr0 libxcb-render0 libxcb-render-util0 libxcb-shape0 \
-    libxcb-sync1 libxcb-xfixes0 libxcb-xinerama0 libxcb-xkb1 libxcb-shm0 \
- && ldconfig && rm -rf /var/lib/apt/lists/*
+    libxcb-sync1 libxcb-xfixes0 libdrm2 libgbm1 ca-certificates fonts-dejavu \
+ && rm -rf /var/lib/apt/lists/*
 
-COPY requirements-dev.txt ./requirements-dev.txt
+# Only requirements first so this layer is cached
+COPY requirements-dev.txt /app/requirements-dev.txt
 
-# Install dependencies
 RUN python -m venv /venv && \
     /venv/bin/pip install --upgrade pip && \
     /venv/bin/pip install -r requirements-dev.txt
 
-# --- CLEANUP ---
-# 1. Remove legacy extension paths to prevent "Ghost" loading
-RUN rm -rf /venv/share/jupyter/nbextensions/jupyter-js-widgets \
-    && rm -rf /usr/local/share/jupyter/nbextensions/jupyter-js-widgets
-
-# 2. Ensure JupyterLab build cache is clean
-RUN /venv/bin/jupyter lab clean
-
+# Use venv python and make /app/src importable as top-level
 ENV PATH="/venv/bin:${PATH}" \
-    PYTHONPATH=/app/src
+    PYTHONPATH=/app/src \
+    QTWEBENGINE_DISABLE_SANDBOX=1 \
+    LIBGL_ALWAYS_SOFTWARE=1 \
+    QTWEBENGINE_CHROMIUM_FLAGS="--disable-webgl --disable-3d-apis --disable-gpu"
 
-# EntryPoint
-RUN printf '#!/usr/bin/env bash\n'\
-'set -e\n'\
-'echo "Clearing QtWebEngine Cache..."\n'\
-'rm -rf /root/.cache/QtProject\n'\
-'rm -rf /root/.local/share/QtProject\n'\
-'\n'\
-'NB="/app/src/cli/leafmap_app.ipynb"\n'\
-'if [ -f "$NB" ]; then\n'\
-'  echo "Starting Voila $NB on port 8866..."\n'\
-'  # Run Voila at low priority on CPU 0 only\n'\
-'  taskset -c 0 nice -n 10 voila "$NB" --port=8866 --no-browser --Voila.ip="0.0.0.0" &\n'\
-'  \n'\
-'  echo "Waiting for Voila to start..."\n'\
-'  timeout=30\n'\
-'  while ! curl -s http://127.0.0.1:8866 > /dev/null; do\n'\
-'    sleep 1\n'\
-'    timeout=$((timeout - 1))\n'\
-'    if [ "$timeout" -le 0 ]; then\n'\
-'      echo "Voila failed to start within time limit"\n'\
-'      exit 1\n'\
-'    fi\n'\
-'  done\n'\
-'  echo "Voila is up! Starting main application..."\n'\
-'else\n'\
-'  echo "Voila notebook not found at $NB, skipping Voila startup."\n'\
-'fi\n'\
-'exec "$@"\n' > /entrypoint.sh && chmod +x /entrypoint.sh
+# Project files
+COPY . /app
+
+COPY docker/entrypoint.sh /entrypoint.sh
+RUN chmod +x /entrypoint.sh
 
 ENTRYPOINT ["/entrypoint.sh"]
 CMD ["bash"]
