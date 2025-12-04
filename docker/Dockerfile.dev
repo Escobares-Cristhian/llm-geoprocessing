@@ -45,8 +45,8 @@ RUN printf '#!/usr/bin/env bash\n'\
 'NB="/app/src/cli/leafmap_app.ipynb"\n'\
 'if [ -f "$NB" ]; then\n'\
 '  echo "Starting Voila $NB on port 8866..."\n'\
-'  # Voila 0.5.5 command\n'\
-'  voila "$NB" --port=8866 --no-browser --Voila.ip="0.0.0.0" &\n'\
+'  # Run Voila at low priority on CPU 0 only\n'\
+'  taskset -c 0 nice -n 10 voila "$NB" --port=8866 --no-browser --Voila.ip="0.0.0.0" &\n'\
 '  \n'\
 '  echo "Waiting for Voila to start..."\n'\
 '  timeout=30\n'\
