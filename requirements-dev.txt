@@ -14,33 +14,8 @@ ipykernel>=6
 
 # gui (Qt chat window)
 PyQt5>=5.15.7
-PyQtWebEngine>=5.15.7
 
-# --- JUPYTER / VOILA / WIDGETS STACK FOR LEAFMAP ---
-# Jupyter server (classic) and Lab
-notebook==7.2.1
-jupyterlab==4.2.5
-
-# Widgets (front-end) for Lab 4 / Notebook 7
-ipywidgets==8.1.2
-jupyterlab_widgets==3.0.15
-
-# Voila, using the Lab 4 stack
-voila==0.5.7
-
-# Map widget stack
-ipyleaflet==0.20.0
-leafmap==0.35.0
-
-# --- LOCAL RASTER SUPPORT ---
-# Required for viewing local GeoTIFFs in Leafmap
-localtileserver>=0.10.0
-# Helper to serve tiles
-flask>=3.0.0
-# Optional but recommended for performance
-rio-cogeo>=5.0.0
-
-# Geospatial
+# geospatial
 xarray>=2023.11.0
 rasterio>=1.4.0
 geopandas>=0.14.0

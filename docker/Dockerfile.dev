@@ -2,38 +2,85 @@ FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
     PYTHONUNBUFFERED=1
+
 WORKDIR /app
 
-# System dependencies (QtWebEngine + GDAL + X11 bits for PyQt5 QWebEngineView)
+# System dependencies for Qt GUI (X11/OpenGL) and GDAL stack for geoprocessing
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git curl python3-venv python3-tk gdal-bin libgdal-dev \
-    python3-pyqt5 python3-pyqt5.qtwebengine \
-    libgl1 libglib2.0-0 libdbus-1-3 libx11-6 libx11-xcb1 libxext6 \
-    libxrender1 libxcomposite1 libxdamage1 libxfixes3 libsm6 libice6 \
-    libfontconfig1 libfreetype6 libnss3 libxss1 libxtst6 libxrandr2 \
-    libxi6 libasound2 libxkbcommon0 libxkbcommon-x11-0 libxcb1 \
-    libxcb-glx0 libxcb-icccm4 libxcb-image0 libxcb-keysyms1 \
-    libxcb-randr0 libxcb-render0 libxcb-render-util0 libxcb-shape0 \
-    libxcb-sync1 libxcb-xfixes0 libdrm2 libgbm1 ca-certificates fonts-dejavu \
+    git \
+    curl \
+    python3-venv \
+    python3-tk \
+    gdal-bin \
+    libgdal-dev \
+    # OpenGL + Mesa (software rendering)
+    libgl1 \
+    libgl1-mesa-dri \
+    mesa-utils \
+    # Qt / X11 runtime deps
+    libglib2.0-0 \
+    libdbus-1-3 \
+    libx11-6 \
+    libx11-xcb1 \
+    libxext6 \
+    libxrender1 \
+    libxcomposite1 \
+    libxdamage1 \
+    libxfixes3 \
+    libsm6 \
+    libice6 \
+    libfontconfig1 \
+    libfreetype6 \
+    libnss3 \
+    libxss1 \
+    libxtst6 \
+    libxrandr2 \
+    libxi6 \
+    libasound2 \
+    libxkbcommon0 \
+    libxkbcommon-x11-0 \
+    libxcb1 \
+    libxcb-glx0 \
+    libxcb-icccm4 \
+    libxcb-image0 \
+    libxcb-keysyms1 \
+    libxcb-randr0 \
+    libxcb-render0 \
+    libxcb-render-util0 \
+    libxcb-shape0 \
+    libxcb-sync1 \
+    libxcb-xfixes0 \
+    libxcb-shm0 \
+    libxcb-util1 \
+    libxcb-xinerama0 \
+    libxcb-cursor0 \
+    libdrm2 \
+    libgbm1 \
+    ca-certificates \
+    fonts-dejavu \
  && rm -rf /var/lib/apt/lists/*
 
-# Only requirements first so this layer is cached
+# Python deps into venv
 COPY requirements-dev.txt /app/requirements-dev.txt
 
 RUN python -m venv /venv && \
     /venv/bin/pip install --upgrade pip && \
-    /venv/bin/pip install -r requirements-dev.txt
+    /venv/bin/pip install -r /app/requirements-dev.txt
 
-# Use venv python and make /app/src importable as top-level
+# Use venv python and expose src
+# Force Qt + Mesa to use software GL, not the host AMD GPU
 ENV PATH="/venv/bin:${PATH}" \
     PYTHONPATH=/app/src \
-    QTWEBENGINE_DISABLE_SANDBOX=1 \
+    QT_X11_NO_MITSHM=1 \
+    QT_QPA_PLATFORM=xcb \
     LIBGL_ALWAYS_SOFTWARE=1 \
-    QTWEBENGINE_CHROMIUM_FLAGS="--disable-webgl --disable-3d-apis --disable-gpu"
+    MESA_LOADER_DRIVER_OVERRIDE=llvmpipe \
+    QT_OPENGL=software
 
 # Project files
 COPY . /app
 
+# Entrypoint
 COPY docker/entrypoint.sh /entrypoint.sh
 RUN chmod +x /entrypoint.sh
 
