@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from llm_geoprocessing.app.llm.LLM import Gemini, ChatMemory
+from llm_geoprocessing.app.llm.LLM import Ollama, Gemini, ChatMemory
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -8,10 +8,11 @@ logger = get_logger("geollm")
 class Chatbot:
     def __init__(self):
         # Gemini
-        # self.chat = Gemini(model="gemini-2.5-pro", quiet=True)        # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
-        self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
+        # self.chat = Gemini(model="gemini-3-pro-preview", quiet=True)        # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
+        # self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)      # 250 RPD
-        # self.chat = Gemini(model="gemini-2.0-flash-lite", quiet=True) # 200 RPD
+        # self.chat = Gemini(model="gemini-2.5-flash-preview-09-2025", quiet=True) # 200 RPD
+        self.chat = Ollama()
         self.chat.config_api()
         self.mem = ChatMemory()
         

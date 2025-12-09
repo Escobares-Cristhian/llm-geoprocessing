@@ -9,6 +9,7 @@ services:
       - "8000:8000"
 
   geollm:
+    network_mode: host   # <--- add this
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
@@ -18,6 +19,7 @@ services:
       - ..:/app
       - ../gee_out:/gee_out
       - /tmp/.X11-unix:/tmp/.X11-unix:ro
+      - ../.env:/app/.env
     env_file:
       - ../.env
     command: bash
@@ -25,5 +27,9 @@ services:
       GEE_PLUGIN_URL: http://gee:8000
       GEO_OUT_DIR: /gee_out
       DISPLAY: ${DISPLAY}
+      OMP_NUM_THREADS: 12
+      OLLAMA_NUM_GPU_LAYERS: 0
+      OLLAMA_MODEL: llama3.2:1b
+      OLLAMA_BASE_URL: http://localhost:11434
     depends_on:
       - gee

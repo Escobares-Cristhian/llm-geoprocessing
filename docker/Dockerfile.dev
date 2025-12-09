@@ -75,7 +75,10 @@ ENV PATH="/venv/bin:${PATH}" \
     QT_QPA_PLATFORM=xcb \
     LIBGL_ALWAYS_SOFTWARE=1 \
     MESA_LOADER_DRIVER_OVERRIDE=llvmpipe \
-    QT_OPENGL=software
+    QT_OPENGL=software \
+    OMP_NUM_THREADS=12 \
+    OLLAMA_NUM_GPU_LAYERS=0 \
+    OLLAMA_MODEL=llama3.2:1b
 
 # Project files
 COPY . /app

@@ -17,7 +17,10 @@ import os
 import sys
 import time
 import io
+import json
 import contextlib
+import urllib.request
+import urllib.error
 from abc import ABC, abstractmethod
 from typing import Any, Dict, Optional, Sequence, Union, List, Tuple, Callable
 
@@ -323,7 +326,7 @@ class LLM(ABC):
         self._rpm_calls.append(time.time())
 
 
-# ---- OpenAI: ChatGPT --------------------------------------------
+# ---- OpenAI: ChatGPT --------------------------------------------------------
 
 class ChatGPT(LLM):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -386,7 +389,7 @@ class ChatGPT(LLM):
         return self._with_retry(_call)
 
 
-# ---- Google: Gemini --------------------------------------------------------
+# ---- Google: Gemini ---------------------------------------------------------
 
 class Gemini(LLM):
     """
@@ -524,6 +527,131 @@ class Gemini(LLM):
 
         return self._with_retry(_call)
 
+
+# ---- Ollama -----------------------------------------------------------------
+
+class Ollama(LLM):
+    """
+    Simple Ollama client using the local HTTP API.
+
+    It assumes an Ollama server is reachable (by default on http://localhost:11434)
+    and uses the /api/chat endpoint.
+
+    Env / config:
+      - OLLAMA_BASE_URL  (optional, defaults to "http://localhost:11434")
+      - OLLAMA_MODEL     (optional, defaults to "llama3.2:1b")
+    """
+
+    def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # Allow passing base_url via kwargs or env
+        self.base_url: str = kwargs.pop(
+            "base_url",
+            os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
+        ).rstrip("/")
+        super().__init__(*args, **kwargs)
+
+    def config_api(
+        self,
+        *,
+        base_url: Optional[str] = None,
+        model: Optional[str] = None,
+        temperature: Optional[float] = None,
+        timeout: Optional[float] = None,
+    ) -> None:
+        # Configure base URL and basic generation settings.
+        if base_url:
+            self.base_url = base_url.rstrip("/")
+        if model:
+            self.model = model
+        if temperature is not None:
+            self.temperature = float(temperature)
+        if timeout is not None:
+            self.timeout = float(timeout)
+
+        if not self.model:
+            # Default to the user-requested model if nothing else is set.
+            self.model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+
+        if not self.model:
+            raise LLMConfigError("Missing Ollama model name (set OLLAMA_MODEL or pass model=...).")
+
+        self._configured = True
+
+    def send_msg(
+        self,
+        messages: Union[str, Message, Sequence[Message]],
+        *,
+        temperature: Optional[float] = None,
+        max_output_tokens: Optional[int] = None,
+        quiet: Optional[bool] = None,
+        **kwargs: Any,
+    ) -> str:
+        self._require_configured()
+
+        chat_messages = self._normalize_messages(messages)
+
+        curr_temp = temperature if temperature is not None else self.temperature
+        payload: Dict[str, Any] = {
+            "model": self.model,
+            "messages": chat_messages,
+        }
+
+        # Map common generation options to Ollama's API.
+        options: Dict[str, Any] = {}
+        if curr_temp is not None:
+            options["temperature"] = curr_temp
+        if max_output_tokens is not None:
+            # Ollama uses "num_predict" for max tokens.
+            options["num_predict"] = max_output_tokens
+        if options:
+            payload["options"] = options
+
+        # Merge any extra kwargs into payload for advanced usage, but don't
+        # clobber top-level keys we already control.
+        for k, v in kwargs.items():
+            if k not in payload:
+                payload[k] = v
+
+        data = json.dumps(payload).encode("utf-8")
+        url = f"{self.base_url}/api/chat"
+        headers = {"Content-Type": "application/json"}
+
+        def _call() -> str:
+            req = urllib.request.Request(url, data=data, headers=headers, method="POST")
+            try:
+                with urllib.request.urlopen(req, timeout=self.timeout or None) as resp:
+                    body = resp.read().decode("utf-8")
+            except urllib.error.HTTPError as e:
+                # Try to surface a meaningful error body if available.
+                err_body = ""
+                try:
+                    err_body = e.read().decode("utf-8")
+                except Exception:
+                    pass
+                raise LLMConfigError(f"Ollama HTTP {e.code}: {e.reason} {err_body}") from e
+            except Exception as e:
+                raise LLMConfigError(f"Ollama request failed: {e}") from e
+
+            try:
+                obj = json.loads(body)
+            except Exception:
+                # If parsing fails, just return raw text.
+                return body.strip()
+
+            # /api/chat returns {"message": {"role": "...", "content": "..."}, ...}
+            if isinstance(obj, dict):
+                msg = obj.get("message", {}) or {}
+                if isinstance(msg, dict):
+                    content = msg.get("content", "")
+                else:
+                    content = obj.get("response", "")
+            else:
+                content = ""
+
+            return str(content or "").strip()
+
+        # No need for quiet stderr redirection here, but re-use the same retry logic.
+        return self._with_retry(_call)
 
 # ---- Smoke test / CLI ------------------------------------------------------
 
