@@ -49,6 +49,16 @@ def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> st
     # Add plugin instructions for context
     prompt += f"\n\nContext Information Dump:\n{_plugin_instructions()}"
     
+    # Add remainder of task
+    prompt += "\n\nIMPORTANT: Do not confuse the algorithms explained in the Context Information Dump with the modes to select."
+    prompt += "\n\nRemember to respond with only the exact name of one the following modes:"
+    prompt += modes_str
+    if modes_explained:
+        explanations = "\n".join(f"{mode}: {desc}" for mode, desc in modes_explained.items())
+        prompt += f"\n\nMode Descriptions:\n{explanations}"
+        prompt += "\n\nUse the descriptions to help you choose the most appropriate mode."
+        prompt += "\n\nRemember to respond with only the exact name of the selected mode and nothing else."
+    
     return prompt
 
 
@@ -86,6 +96,7 @@ def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Option
         return selected_mode
     
     # If no valid mode is selected, raise an error
+    print( f"Mode selection failed. Response: {response}" )
     raise ValueError("No valid mode selected.")
 
 

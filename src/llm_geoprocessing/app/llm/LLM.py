@@ -138,7 +138,7 @@ class ChatMemory:
         if role not in {"user", "assistant", "system"}:
             raise LLMError("Invalid role; expected 'user', 'assistant', or 'system'.")
         if not isinstance(content, str):
-            raise LLMError("Content must be a string.")
+            raise LLMError(f"Content must be a string. Got {type(content)}.Content: {content}")
         self._messages.append({"role": role, "content": content})
 
     def add_user(self, content: str) -> None:
@@ -163,7 +163,7 @@ class ChatMemory:
             m["role"] = role
         if content is not None:
             if not isinstance(content, str):
-                raise LLMError("Content must be a string.")
+                raise LLMError(f"Content must be a string. Got {type(content)}.Content: {content}")
             m["content"] = content
 
     def delete(self, index: int) -> None:
@@ -532,18 +532,14 @@ class Gemini(LLM):
 
 class Ollama(LLM):
     """
-    Simple Ollama client using the local HTTP API.
-
-    It assumes an Ollama server is reachable (by default on http://localhost:11434)
-    and uses the /api/chat endpoint.
+    Simple Ollama client using the local HTTP API (/api/chat).
 
     Env / config:
       - OLLAMA_BASE_URL  (optional, defaults to "http://localhost:11434")
-      - OLLAMA_MODEL     (optional, defaults to "llama3.2:1b")
+      - OLLAMA_MODEL     (optional, defaults to "phi3.5:3.8b-mini-instruct-q4_0")
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
-        # Allow passing base_url via kwargs or env
         self.base_url: str = kwargs.pop(
             "base_url",
             os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
@@ -558,19 +554,20 @@ class Ollama(LLM):
         temperature: Optional[float] = None,
         timeout: Optional[float] = None,
     ) -> None:
-        # Configure base URL and basic generation settings.
         if base_url:
             self.base_url = base_url.rstrip("/")
+
         if model:
             self.model = model
+
         if temperature is not None:
             self.temperature = float(temperature)
+
         if timeout is not None:
             self.timeout = float(timeout)
 
         if not self.model:
-            # Default to the user-requested model if nothing else is set.
-            self.model = os.getenv("OLLAMA_MODEL", "llama3.2:1b")
+            self.model = os.getenv("OLLAMA_MODEL", "phi3.5:3.8b-mini-instruct-q4_0")
 
         if not self.model:
             raise LLMConfigError("Missing Ollama model name (set OLLAMA_MODEL or pass model=...).")
@@ -583,31 +580,31 @@ class Ollama(LLM):
         *,
         temperature: Optional[float] = None,
         max_output_tokens: Optional[int] = None,
-        quiet: Optional[bool] = None,
+        quiet: Optional[bool] = None,  # kept for interface compatibility
         **kwargs: Any,
     ) -> str:
         self._require_configured()
 
         chat_messages = self._normalize_messages(messages)
-
         curr_temp = temperature if temperature is not None else self.temperature
+
         payload: Dict[str, Any] = {
             "model": self.model,
             "messages": chat_messages,
+            # IMPORTANT: no streaming, single JSON response
+            "stream": False,
         }
 
-        # Map common generation options to Ollama's API.
         options: Dict[str, Any] = {}
         if curr_temp is not None:
-            options["temperature"] = curr_temp
+            options["temperature"] = float(curr_temp)
         if max_output_tokens is not None:
-            # Ollama uses "num_predict" for max tokens.
-            options["num_predict"] = max_output_tokens
+            # Ollama uses "num_predict" for max output tokens
+            options["num_predict"] = int(max_output_tokens)
         if options:
             payload["options"] = options
 
-        # Merge any extra kwargs into payload for advanced usage, but don't
-        # clobber top-level keys we already control.
+        # Allow advanced/extra options via kwargs (without clobbering known keys)
         for k, v in kwargs.items():
             if k not in payload:
                 payload[k] = v
@@ -622,35 +619,66 @@ class Ollama(LLM):
                 with urllib.request.urlopen(req, timeout=self.timeout or None) as resp:
                     body = resp.read().decode("utf-8")
             except urllib.error.HTTPError as e:
-                # Try to surface a meaningful error body if available.
                 err_body = ""
                 try:
                     err_body = e.read().decode("utf-8")
                 except Exception:
                     pass
-                raise LLMConfigError(f"Ollama HTTP {e.code}: {e.reason} {err_body}") from e
+                raise LLMConfigError(
+                    f"Ollama HTTP {e.code}: {e.reason} {err_body}"
+                ) from e
             except Exception as e:
                 raise LLMConfigError(f"Ollama request failed: {e}") from e
 
+            # 1) First, try standard non-streaming JSON: {"message": {"content": "..."}}
             try:
                 obj = json.loads(body)
             except Exception:
-                # If parsing fails, just return raw text.
+                # 2) Fallback: handle NDJSON streaming output if stream=True ever gets used
+                chunks: List[str] = []
+                for line in body.splitlines():
+                    line = line.strip()
+                    if not line:
+                        continue
+                    try:
+                        part = json.loads(line)
+                    except Exception:
+                        continue
+                    msg = part.get("message") or {}
+                    if isinstance(msg, dict):
+                        c = msg.get("content")
+                        if isinstance(c, str):
+                            chunks.append(c)
+                if chunks:
+                    return "".join(chunks).strip()
                 return body.strip()
 
-            # /api/chat returns {"message": {"role": "...", "content": "..."}, ...}
+            text: Optional[str] = None
+
             if isinstance(obj, dict):
-                msg = obj.get("message", {}) or {}
-                if isinstance(msg, dict):
-                    content = msg.get("content", "")
-                else:
-                    content = obj.get("response", "")
-            else:
-                content = ""
+                # Normal /api/chat response
+                msg = obj.get("message")
+                if isinstance(msg, dict) and isinstance(msg.get("content"), str):
+                    text = msg["content"]
 
-            return str(content or "").strip()
+                # /api/generate-style fallback: {"response": "..."}
+                if text is None and isinstance(obj.get("response"), str):
+                    text = obj["response"]
 
-        # No need for quiet stderr redirection here, but re-use the same retry logic.
+                # Some variants expose "messages": [...]
+                if text is None:
+                    msgs = obj.get("messages")
+                    if isinstance(msgs, list) and msgs:
+                        last = msgs[-1]
+                        if isinstance(last, dict) and isinstance(last.get("content"), str):
+                            text = last["content"]
+
+            # Last-resort: raw body
+            if text is None:
+                text = body
+
+            return text.strip()
+
         return self._with_retry(_call)
 
 # ---- Smoke test / CLI ------------------------------------------------------

@@ -29,7 +29,7 @@ services:
       DISPLAY: ${DISPLAY}
       OMP_NUM_THREADS: 12
       OLLAMA_NUM_GPU_LAYERS: 0
-      OLLAMA_MODEL: llama3.2:1b
+      OLLAMA_MODEL: phi3.5:3.8b-mini-instruct-q4_0
       OLLAMA_BASE_URL: http://localhost:11434
     depends_on:
       - gee

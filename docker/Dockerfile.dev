@@ -78,7 +78,7 @@ ENV PATH="/venv/bin:${PATH}" \
     QT_OPENGL=software \
     OMP_NUM_THREADS=12 \
     OLLAMA_NUM_GPU_LAYERS=0 \
-    OLLAMA_MODEL=llama3.2:1b
+    OLLAMA_MODEL=phi3.5:3.8b-mini-instruct-q4_0
 
 # Project files
 COPY . /app
