@@ -24,7 +24,7 @@ services:
       - ../.env
     command: bash
     environment:
-      GEE_PLUGIN_URL: http://gee:8000
+      GEE_PLUGIN_URL: http://localhost:8000
       GEO_OUT_DIR: /gee_out
       DISPLAY: ${DISPLAY}
       OMP_NUM_THREADS: 12
