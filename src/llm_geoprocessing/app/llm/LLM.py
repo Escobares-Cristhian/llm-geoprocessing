@@ -330,8 +330,11 @@ class LLM(ABC):
 
 class ChatGPT(LLM):
     def __init__(self, *args: Any, **kwargs: Any) -> None:
+        # Optional: quiet OpenAI SDK/native stderr (same pattern as Gemini / Ollama).
+        self.quiet: bool = bool(kwargs.pop("quiet", False))
         super().__init__(*args, **kwargs)
         self._openai_client = None
+        self._default_reasoning_effort: Optional[str] = None
 
     def config_api(
         self,
@@ -344,20 +347,35 @@ class ChatGPT(LLM):
         api_key = api_key or os.getenv("OPENAI_API_KEY")
         if not api_key:
             raise LLMConfigError("Missing OPENAI_API_KEY.")
+
         try:
             from openai import OpenAI  # type: ignore
         except Exception as e:
             raise LLMConfigError("openai SDK not installed. `pip install openai`") from e
 
-        self._openai_client = OpenAI(api_key=api_key)
+        if timeout is not None:
+            self.timeout = float(timeout)
+
+        self._openai_client = OpenAI(
+            api_key=api_key,
+            timeout=self.timeout or None,
+        )
+
         if model:
             self.model = model
         if temperature is not None:
             self.temperature = float(temperature)
-        if timeout is not None:
-            self.timeout = float(timeout)
         if not self.model:
-            self.model = "gpt-4o-mini"
+            # Default can be overridden by caller.
+            self.model = "gpt-5-nano"
+
+        # Default: explicitly disable reasoning for GPT-5.1 family.
+        model_l = (self.model or "").lower()
+        if "gpt-5" in model_l:
+            self._default_reasoning_effort = "minimal"
+        else:
+            self._default_reasoning_effort = None
+
         self._configured = True
 
     def send_msg(
@@ -366,6 +384,8 @@ class ChatGPT(LLM):
         *,
         temperature: Optional[float] = None,
         max_output_tokens: Optional[int] = None,
+        quiet: Optional[bool] = None,
+        reasoning_effort: Optional[str] = None,
         **kwargs: Any,
     ) -> str:
         self._require_configured()
@@ -375,16 +395,43 @@ class ChatGPT(LLM):
         chat_messages = [{"role": m["role"], "content": m["content"]} for m in msgs]
         curr_temp = self.temperature if temperature is None else float(temperature)
 
+        # Base request for Responses API.
+        req: Dict[str, Any] = {
+            "model": self.model,
+            "input": chat_messages,
+            "temperature": curr_temp,
+        }
+        if max_output_tokens is not None:
+            # For Responses API, the correct limit parameter is max_output_tokens.
+            req["max_output_tokens"] = int(max_output_tokens)
+
+        # Decide reasoning_effort to send (if any).
+        eff = reasoning_effort if reasoning_effort is not None else self._default_reasoning_effort
+
+        # Only gpt-5* and o-series support the `reasoning` block.
+        model_l = (self.model or "").lower()
+        is_reasoning_model = (
+            model_l.startswith("gpt-5")
+            or model_l.startswith("o1")
+            or model_l.startswith("o3")
+            or model_l.startswith("o4")
+        )
+        if eff is not None and is_reasoning_model:
+            req["reasoning"] = {"effort": eff}
+
+        # Allow advanced/extra options via kwargs without clobbering known keys.
+        for k, v in kwargs.items():
+            if k not in req:
+                req[k] = v
+
+        use_quiet = self.quiet if quiet is None else bool(quiet)
+
         def _call() -> str:
-            resp = self._openai_client.chat.completions.create(
-                model=self.model,
-                messages=chat_messages,
-                temperature=curr_temp,
-                max_tokens=max_output_tokens,
-                timeout=self.timeout,
-                **kwargs,
-            )
-            return (resp.choices[0].message.content or "").strip()
+            with _quiet_ctx(use_quiet):
+                # Use Responses API as recommended for reasoning models.
+                resp = self._openai_client.responses.create(**req)
+            text = getattr(resp, "output_text", None)
+            return (text or "").strip()
 
         return self._with_retry(_call)
 

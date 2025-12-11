@@ -1,6 +1,6 @@
 import os
 from typing import Optional
-from llm_geoprocessing.app.llm.LLM import Ollama, Gemini, ChatMemory
+from llm_geoprocessing.app.llm.LLM import ChatGPT, Ollama, Gemini, ChatMemory
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -9,17 +9,24 @@ class Chatbot:
     def __init__(self):
         # Gemini
         # self.chat = Gemini(model="gemini-3-pro-preview", quiet=True)        # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
-        self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
+        # self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.5-flash-preview-09-2025", quiet=True) # 200 RPD
         # self.chat = Gemini(model="gemma-3-27b", quiet=True)
         # self.chat = Gemini(model=": gemini-2.5-pro-1p-freebie", quiet=True)  # 500 RPD
-        self.chat.config_api()
+        # self.chat.config_api()
+        # self.chat.set_rate_limit(10)  # 10 requests per minute
+        
         # self.chat = Ollama()
         # self.chat.config_api(timeout=300)  # 5 minutes timeout
-        self.mem = ChatMemory()
+        # self.chat.set_rate_limit(10000)  # 10_000 requests per minute
         
-        self.chat.set_rate_limit(10)  # 10 requests per minute
+        # self.chat = ChatGPT(model="gpt-5-nano", quiet=True)
+        self.chat = ChatGPT(model="gpt-5-mini", quiet=True)
+        self.chat.config_api(temperature=1.0)
+        self.chat.set_rate_limit(500)  # 500 requests per minute
+        
+        self.mem = ChatMemory()
         
         # Add general information to system
         self.mem.add_system(self._add_system_info())
