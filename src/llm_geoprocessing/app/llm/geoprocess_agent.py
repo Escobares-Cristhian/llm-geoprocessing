@@ -346,7 +346,8 @@ def check_and_fix_json(
         key = _normalize_error_key(err_msg)
         cnt = error_attempts.get(key, 0)
         if cnt >= max_hierarchy_per_error:
-            raise ValueError(f"Exceeded attempts for error: {key} (limit={max_hierarchy_per_error})")
+            # raise ValueError(f"Exceeded attempts for error: {key} (limit={max_hierarchy_per_error})")
+            return state  # give up on this error, return current state
         error_attempts[key] = cnt + 1
 
         fixed = HandleValueErrorWithLLM(chatbot, state, err_msg)
@@ -761,7 +762,7 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg: str) -> Tuple[Chatbot, str] | s
     
     # Handle exit command
     if json_instructions == "exit":
-        return "exit"
+        return chatbot, "exit"
     
     logger.debug("*"*60)
     logger.debug("Final JSON instructions:")
