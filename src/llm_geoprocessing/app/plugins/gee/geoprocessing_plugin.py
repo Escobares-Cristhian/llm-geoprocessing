@@ -63,5 +63,7 @@ def get_documentation_geoprocessing() -> str:
         "- index_composite:  multi-date ND composites (e.g., seasonal NDVI).\n"
         "- bands_single: export 1–N raw bands (or all bands) for a single date over an area.\n"
         "- bands_composite: export 1–N raw bands (or all bands) from multi-date composites for an area.\n"
+        "\n General notes:"
+        "- none of the geoprocess uses the key 'other_params'. Leave it empty like other_params={}.\n"
         "---------- END of DOCUMENTATION of GEOPROCESSING ----------\n"
     )
