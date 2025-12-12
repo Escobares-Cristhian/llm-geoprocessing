@@ -545,6 +545,18 @@ class Gemini(LLM):
         system_instr, contents = self._to_gemini_contents(msgs, types_mod=self._genai_types)
         curr_temp = self.temperature if temperature is None else float(temperature)
 
+        # Gemma models reject system/developer instructions; inline them as a user message instead.
+        model_l = (self._model_name_cache or self.model or "").lower()
+        supports_system_instruction = "gemma" not in model_l
+        if system_instr and not supports_system_instruction:
+            contents = [
+                self._genai_types.Content(
+                    role="user",
+                    parts=[self._genai_types.Part.from_text(text=system_instr)],
+                )
+            ] + contents
+            system_instr = None
+
         # Build config using typed model; only include provided fields.
         cfg_kwargs: Dict[str, Any] = {"temperature": curr_temp}
         if max_output_tokens is not None:
@@ -553,7 +565,6 @@ class Gemini(LLM):
             cfg_kwargs["system_instruction"] = system_instr
 
         # Thinking config: 2.5 Pro => 128, other 2.5 (Flash/Light) => 0 (disabled)
-        model_l = (self._model_name_cache or self.model or "").lower()
         if "2.5" in model_l:
             budget = 128 if "pro" in model_l else 0
             cfg_kwargs["thinking_config"] = self._genai_types.ThinkingConfig(thinking_budget=budget)
@@ -583,7 +594,7 @@ class Ollama(LLM):
 
     Env / config:
       - OLLAMA_BASE_URL  (optional, defaults to "http://localhost:11434")
-      - OLLAMA_MODEL     (optional, defaults to "phi3.5:3.8b-mini-instruct-q4_0")
+      - OLLAMA_MODEL     (optional, defaults to "gemma3:1b-it-qat")
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -614,7 +625,7 @@ class Ollama(LLM):
             self.timeout = float(timeout)
 
         if not self.model:
-            self.model = os.getenv("OLLAMA_MODEL", "phi3.5:3.8b-mini-instruct-q4_0")
+            self.model = os.getenv("OLLAMA_MODEL", "gemma3:1b-it-qat")
 
         if not self.model:
             raise LLMConfigError("Missing Ollama model name (set OLLAMA_MODEL or pass model=...).")

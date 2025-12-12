@@ -13,6 +13,7 @@ from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 from llm_geoprocessing.app.plugins.runtime_executor import execute_action
+from llm_geoprocessing.app.db.postgis_uploader import upload_raster_to_postgis, is_postgis_enabled
 
 from cli.chat_io import ChatIO
 
@@ -658,6 +659,7 @@ def _merge_with_gdal(src_files: list[Path], out_tif: Path) -> Path:
     vrt.unlink(missing_ok=True)
     return out_path
 
+
 # -----------------------------------------------------------------------------
 
 # --- Main geoprocessing function -------------------------------------------------
@@ -685,7 +687,9 @@ def geoprocess(json_instructions) -> str:
     # Build product mapping from id -> name for easy resolution
     product_map = {p.get("id"): p.get("name") for p in products if p.get("id") and p.get("name")}
 
-    outputs = {}
+    outputs: dict[str, list[str]] = {}
+    postgis_tables: dict[str, str] = {}
+
     for idx, action in enumerate(actions, 1):
         name = action.get("geoprocess_name")
         params = action.get("input_json") or {}
@@ -733,6 +737,20 @@ def geoprocess(json_instructions) -> str:
                 final_path = _merge_with_gdal(local_tiles, merged_tif)
                 logger.debug(f"merged -> {final_path}")
                 outputs[out_id] = [str(final_path)]
+
+                # Optional: upload merged raster to PostGIS and then remove the local file.
+                if is_postgis_enabled():
+                    try:
+                        table = upload_raster_to_postgis(final_path, out_id)
+                        if table:
+                            postgis_tables[out_id] = table
+                            try:
+                                final_path.unlink()
+                                logger.debug("Removed merged file after PostGIS upload: %s", final_path)
+                            except Exception as e:
+                                logger.warning("Could not remove merged file %s: %s", final_path, e)
+                    except Exception as e:
+                        logger.error("PostGIS upload error for %s: %s", final_path, e)
             except Exception as e:
                 return f"Action '{name}' download/merge failed: {e}"
         else:
@@ -741,7 +759,10 @@ def geoprocess(json_instructions) -> str:
     # Minimal, focused summary for the interpreter
     lines = ["Geoprocessing completed:"]
     for k, url_list in outputs.items():
-        if len(url_list) == 1:
+        table = postgis_tables.get(k)
+        if table:
+            lines.append(f"- {k}: stored in PostGIS table {table}")
+        elif len(url_list) == 1:
             lines.append(f"- {k}: {url_list[0]}")
         else:
             lines.append(f"- {k} (tiles: {len(url_list)}):")

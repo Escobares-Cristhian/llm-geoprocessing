@@ -13,6 +13,8 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     python3-tk \
     gdal-bin \
     libgdal-dev \
+    postgresql-client \
+    postgis \
     # OpenGL + Mesa (software rendering)
     libgl1 \
     libgl1-mesa-dri \
@@ -78,7 +80,7 @@ ENV PATH="/venv/bin:${PATH}" \
     QT_OPENGL=software \
     OMP_NUM_THREADS=12 \
     OLLAMA_NUM_GPU_LAYERS=0 \
-    OLLAMA_MODEL=phi3.5:3.8b-mini-instruct-q4_0
+    OLLAMA_MODEL=gemma3:1b-it-qat
 
 # Project files
 COPY . /app

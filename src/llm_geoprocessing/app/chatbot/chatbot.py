@@ -12,19 +12,20 @@ class Chatbot:
         # self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.5-flash-preview-09-2025", quiet=True) # 200 RPD
-        # self.chat = Gemini(model="gemma-3-27b", quiet=True)
         # self.chat = Gemini(model=": gemini-2.5-pro-1p-freebie", quiet=True)  # 500 RPD
+        # self.chat = Gemini(model="gemma-3-27b-it", quiet=True)
         # self.chat.config_api()
         # self.chat.set_rate_limit(10)  # 10 requests per minute
         
-        # self.chat = Ollama()
-        # self.chat.config_api(timeout=300)  # 5 minutes timeout
-        # self.chat.set_rate_limit(10000)  # 10_000 requests per minute
+        self.chat = Ollama()
+        self.chat.config_api(timeout=300)  # 5 minutes timeout
+        self.chat.set_rate_limit(10000)  # 10_000 requests per minute
         
-        self.chat = ChatGPT(model="gpt-5-nano", quiet=True)
+        # self.chat = ChatGPT(model="gpt-5-nano", quiet=True)
         # self.chat = ChatGPT(model="gpt-5-mini", quiet=True)
-        self.chat.config_api(temperature=1.0)
-        self.chat.set_rate_limit(500)  # 500 requests per minute
+        # self.chat = ChatGPT(model="gpt-5", quiet=True)
+        # self.chat.config_api(temperature=1.0)
+        # self.chat.set_rate_limit(500)  # 500 requests per minute
         
         self.mem = ChatMemory()
         

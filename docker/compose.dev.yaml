@@ -8,8 +8,20 @@ services:
     ports:
       - "8000:8000"
 
+  postgis:
+    image: postgis/postgis:16-3.4
+    restart: unless-stopped
+    ports:
+      - "5432:5432"
+    environment:
+      POSTGRES_DB: geollm
+      POSTGRES_USER: geollm
+      POSTGRES_PASSWORD: geollm
+    volumes:
+      - ../.data/postgis:/var/lib/postgresql/data
+
   geollm:
-    network_mode: host   # <--- add this
+    network_mode: host
     build:
       context: ..
       dockerfile: docker/Dockerfile.dev
@@ -29,7 +41,17 @@ services:
       DISPLAY: ${DISPLAY}
       OMP_NUM_THREADS: 12
       OLLAMA_NUM_GPU_LAYERS: 0
-      OLLAMA_MODEL: phi3.5:3.8b-mini-instruct-q4_0
+      OLLAMA_MODEL: gemma3:1b-it-qat
       OLLAMA_BASE_URL: http://localhost:11434
+      POSTGIS_ENABLED: "true"
+      POSTGIS_HOST: "localhost"
+      POSTGIS_PORT: "5432"
+      POSTGIS_DB: "geollm"
+      POSTGIS_USER: "geollm"
+      POSTGIS_PASSWORD: "geollm"
+      POSTGIS_SCHEMA: "public"
+      POSTGIS_TABLE_PREFIX: "gee_output_"
+      POSTGIS_SRID: "4326"
     depends_on:
       - gee
+      - postgis
