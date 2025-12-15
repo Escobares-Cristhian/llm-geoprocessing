@@ -114,11 +114,24 @@ def _extract_first_json_block(text: str) -> Optional[Dict[str, Any]]:
     blocks = re.findall(r"```(?:json)?\s*(\{[\s\S]*?\})\s*```", text, flags=re.IGNORECASE)
     if not blocks:
         blocks = re.findall(r"(\{[\s\S]*\})", text)
+
     for b in blocks:
         try:
-            return json.loads(_sanitize_json(b))
+            # Parse first valid JSON candidate (after sanitization)
+            obj = json.loads(_sanitize_json(b))
+
+            # We only accept JSON objects (dicts) here
+            if not isinstance(obj, dict):
+                continue
+
+            # Ensure required top-level keys exist (empty defaults)
+            obj.setdefault("complete", False)   # empty/not complete by default
+            obj.setdefault("questions", [])     # no questions by default
+
+            return obj
         except Exception:
             continue
+
     return None
 
 
@@ -208,6 +221,11 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
     reply = chat.send_message(prompt)
     wrapper = _extract_first_json_block(reply)
     if not wrapper or not all(k in wrapper for k in ("json", "complete", "questions")):
+        # logger.error(f"reply:\n{reply}\n\nwrapper:\n{wrapper}\n")
+        logger.error("reply:")
+        logger.error(reply)
+        logger.error("wrapper:")
+        logger.error(wrapper)
         raise ValueError("LLM did not return a valid wrapper JSON on first pass.")
 
     state: Dict[str, Any] = wrapper["json"]

@@ -595,6 +595,8 @@ class Ollama(LLM):
     Env / config:
       - OLLAMA_BASE_URL  (optional, defaults to "http://localhost:11434")
       - OLLAMA_MODEL     (optional, defaults to "gemma3:1b-it-qat")
+      - OLLAMA_NUM_CTX   (optional, context window in tokens; default in code: 8192)
+        (fallback env name: CONTEXT)
     """
 
     def __init__(self, *args: Any, **kwargs: Any) -> None:
@@ -602,6 +604,12 @@ class Ollama(LLM):
             "base_url",
             os.getenv("OLLAMA_BASE_URL", "http://localhost:11434"),
         ).rstrip("/")
+
+        # Default context window (tokens). Override via env or per-request.
+        # - Env: OLLAMA_NUM_CTX (preferred), or CONTEXT (fallback)
+        _env_num_ctx = os.getenv("OLLAMA_NUM_CTX") or os.getenv("CONTEXT")
+        self.num_ctx: int = int(_env_num_ctx) if _env_num_ctx else 8192
+
         super().__init__(*args, **kwargs)
 
     def config_api(
@@ -611,6 +619,7 @@ class Ollama(LLM):
         model: Optional[str] = None,
         temperature: Optional[float] = None,
         timeout: Optional[float] = None,
+        num_ctx: Optional[int] = None,
     ) -> None:
         if base_url:
             self.base_url = base_url.rstrip("/")
@@ -623,6 +632,9 @@ class Ollama(LLM):
 
         if timeout is not None:
             self.timeout = float(timeout)
+
+        if num_ctx is not None:
+            self.num_ctx = int(num_ctx)
 
         if not self.model:
             self.model = os.getenv("OLLAMA_MODEL", "gemma3:1b-it-qat")
@@ -638,6 +650,7 @@ class Ollama(LLM):
         *,
         temperature: Optional[float] = None,
         max_output_tokens: Optional[int] = None,
+        num_ctx: Optional[int] = None,
         quiet: Optional[bool] = None,  # kept for interface compatibility
         **kwargs: Any,
     ) -> str:
@@ -659,6 +672,11 @@ class Ollama(LLM):
         if max_output_tokens is not None:
             # Ollama uses "num_predict" for max output tokens
             options["num_predict"] = int(max_output_tokens)
+
+        use_num_ctx = self.num_ctx if num_ctx is None else int(num_ctx)
+        if use_num_ctx is not None:
+            options["num_ctx"] = int(use_num_ctx)
+
         if options:
             payload["options"] = options
 

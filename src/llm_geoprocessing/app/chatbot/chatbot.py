@@ -9,17 +9,17 @@ class Chatbot:
     def __init__(self):
         # Gemini
         # self.chat = Gemini(model="gemini-3-pro-preview", quiet=True)        # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
-        # self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
+        self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.0-flash", quiet=True)      # 250 RPD
         # self.chat = Gemini(model="gemini-2.5-flash-preview-09-2025", quiet=True) # 200 RPD
         # self.chat = Gemini(model=": gemini-2.5-pro-1p-freebie", quiet=True)  # 500 RPD
         # self.chat = Gemini(model="gemma-3-27b-it", quiet=True)
-        # self.chat.config_api()
-        # self.chat.set_rate_limit(10)  # 10 requests per minute
+        self.chat.config_api()
+        self.chat.set_rate_limit(1000)  # 10 requests per minute
         
-        self.chat = Ollama()
-        self.chat.config_api(timeout=300)  # 5 minutes timeout
-        self.chat.set_rate_limit(10000)  # 10_000 requests per minute
+        # self.chat = Ollama()
+        # self.chat.config_api(timeout=300)  # 5 minutes timeout
+        # self.chat.set_rate_limit(10000)  # 10_000 requests per minute
         
         # self.chat = ChatGPT(model="gpt-5-nano", quiet=True)
         # self.chat = ChatGPT(model="gpt-5-mini", quiet=True)
