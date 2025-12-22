@@ -97,6 +97,15 @@ def upload_raster_to_postgis(
     # Prepare environment
     env = os.environ.copy()
     env.update(_pg_env_from_settings())
+    
+    # --- Ensure extensions exist before attempting upload ---
+    logger.info("Ensuring PostGIS extensions are enabled...")
+    subprocess.run(
+        ["psql", "-c", "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_raster;"],
+        env=env,
+        check=False  # Don't crash if user lacks permissions, just try
+    )
+    # -------------------------------------------------------
 
     # Build raster2pgsql command
     cmd = ["raster2pgsql", "-I", "-C", "-M"]
