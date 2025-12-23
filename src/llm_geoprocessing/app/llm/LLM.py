@@ -565,7 +565,7 @@ class Gemini(LLM):
             cfg_kwargs["system_instruction"] = system_instr
 
         # Thinking config: 2.5 Pro => 128, other 2.5 (Flash/Light) => 0 (disabled)
-        if "2.5" in model_l:
+        if "2.5" or "gemini-3" in model_l:
             budget = 128 if "pro" in model_l else 0
             cfg_kwargs["thinking_config"] = self._genai_types.ThinkingConfig(thinking_budget=budget)
 
