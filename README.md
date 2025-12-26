@@ -23,4 +23,7 @@ After execute the above command as normal
 `docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.dev_tests.run_geoprocess_json --file tmp/json_instruction_example.json`
 
 - TO get the logs:
-`docker compose -f docker/compose.dev.yaml logs --no-log-prefix gee | tail -n 100`
+`docker compose -f docker/compose.dev.yaml logs --no-log-prefix -f gee`
+
+- To FIX Modis in PostGIS, add this Custom CRS in QGIS:
+`+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs`
