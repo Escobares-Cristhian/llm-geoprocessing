@@ -14,6 +14,8 @@ from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_prep
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
 from llm_geoprocessing.app.plugins.runtime_executor import execute_action
 from llm_geoprocessing.app.db.postgis_uploader import upload_raster_to_postgis, is_postgis_enabled
+from llm_geoprocessing.app.chatdb import get_chatdb
+from llm_geoprocessing.app.chatdb.context import get_session_id, set_run_id
 
 from cli.chat_io import ChatIO
 
@@ -690,14 +692,28 @@ def geoprocess(json_instructions) -> str:
     - Use a runtime executor that discovers the active plugin (env var or default GEE HTTP adaptor).
     - For each action in order, execute and collect output URLs by 'output_id'.
     """
+    chatdb = get_chatdb()
+    run_id = None
+    if chatdb.enabled:
+        run_id = chatdb.start_run(session_id=get_session_id(), params=json_instructions)
+        set_run_id(run_id)
+
+    def _finish(status: str, extra: Optional[dict] = None) -> None:
+        if run_id and chatdb.enabled:
+            chatdb.finish_run(run_id, status, extra=extra)
+        set_run_id(None)
+
+    def _error(msg: str) -> str:
+        _finish("error", {"error": msg})
+        return msg
 
     products = json_instructions.get("products") or []
     if not isinstance(products, list):
-        return "Error: 'products' must be a list."
+        return _error("Error: 'products' must be a list.")
     
     actions = json_instructions.get("actions") or []
     if not isinstance(actions, list) or not actions:
-        return "No geoprocess actions to run."
+        return _error("No geoprocess actions to run.")
 
     _debug_env()
     # _print_tree(OUTPUT_BASE_DIR, depth=2)
@@ -713,7 +729,7 @@ def geoprocess(json_instructions) -> str:
         params = action.get("input_json") or {}
         out_id = action.get("output_id") or f"step_{idx}"
         if not name:
-            return f"Action #{idx} missing 'geoprocess_name'."
+            return _error(f"Action #{idx} missing 'geoprocess_name'.")
 
         # Resolve product id to actual product name
         if "product" in params and params["product"] in product_map:
@@ -723,7 +739,7 @@ def geoprocess(json_instructions) -> str:
         try:
             result = execute_action(name, params)
         except Exception as e:
-            return f"Action '{name}' failed: {e}"
+            return _error(f"Action '{name}' failed: {e}")
 
         # Collect URLs from result (tiled or single)
         urls = None
@@ -755,6 +771,8 @@ def geoprocess(json_instructions) -> str:
                 final_path = _merge_with_gdal(local_tiles, merged_tif)
                 logger.debug(f"merged -> {final_path}")
                 outputs[out_id] = [str(final_path)]
+                if run_id and chatdb.enabled:
+                    chatdb.insert_artifact(run_id, "merged_tif", str(final_path))
 
                 # Optional: upload merged raster to PostGIS and then remove the local file.
                 if is_postgis_enabled():
@@ -762,6 +780,8 @@ def geoprocess(json_instructions) -> str:
                         table = upload_raster_to_postgis(final_path, out_id)
                         if table:
                             postgis_tables[out_id] = table
+                            if run_id and chatdb.enabled:
+                                chatdb.insert_artifact(run_id, "postgis_raster_table", table)
                             try:
                                 final_path.unlink()
                                 logger.debug("Removed merged file after PostGIS upload: %s", final_path)
@@ -770,7 +790,7 @@ def geoprocess(json_instructions) -> str:
                     except Exception as e:
                         logger.error("PostGIS upload error for %s: %s", final_path, e)
             except Exception as e:
-                return f"Action '{name}' download/merge failed: {e}"
+                return _error(f"Action '{name}' download/merge failed: {e}")
         else:
             outputs[out_id] = ["<no file>"]
 
@@ -786,6 +806,7 @@ def geoprocess(json_instructions) -> str:
             lines.append(f"- {k} (tiles: {len(url_list)}):")
             for i, u in enumerate(url_list, 1):
                 lines.append(f"  {i:02d}. {u}")
+    _finish("success")
     return "\n".join(lines)
 
 

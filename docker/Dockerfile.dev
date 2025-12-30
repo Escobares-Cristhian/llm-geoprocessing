@@ -67,7 +67,6 @@ COPY requirements-dev.txt /app/requirements-dev.txt
 
 # Ensure pip wheel is installed to help with binary builds
 RUN python -m venv /venv && \
-    /venv/bin/pip install --upgrade pip setuptools wheel && \
     /venv/bin/pip install -r /app/requirements-dev.txt
 
 # Use venv python and expose src

@@ -22,7 +22,11 @@ import contextlib
 import urllib.request
 import urllib.error
 from abc import ABC, abstractmethod
-from typing import Any, Dict, Optional, Sequence, Union, List, Tuple, Callable
+from typing import Any, Dict, Optional, Sequence, Union, List, Tuple, Callable, TYPE_CHECKING
+
+if TYPE_CHECKING:
+    from uuid import UUID
+    from llm_geoprocessing.app.chatdb import ChatDB
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
@@ -129,9 +133,19 @@ class ChatMemory:
       Assistant: Hi Cristhian, my name is Gemini
       User:
     """
-    def __init__(self, *, user_name: str = "User") -> None:
+    def __init__(
+        self,
+        *,
+        user_name: str = "User",
+        chatdb: Optional["ChatDB"] = None,
+        session_id: Optional[Union[str, "UUID"]] = None,
+        persist: bool = True,
+    ) -> None:
         self.user_name = user_name
         self._messages: List[Message] = []
+        self._chatdb = chatdb
+        self._session_id = session_id
+        self._persist = bool(persist)
 
     # ---- basic ops ----
     def add(self, role: str, content: str) -> None:
@@ -140,6 +154,8 @@ class ChatMemory:
         if not isinstance(content, str):
             raise LLMError(f"Content must be a string. Got {type(content)}.Content: {content}")
         self._messages.append({"role": role, "content": content})
+        if self._persist and self._chatdb and self._session_id and getattr(self._chatdb, "enabled", False):
+            self._chatdb.insert_message(self._session_id, role, content)
 
     def add_user(self, content: str) -> None:
         self.add("user", content)
@@ -171,6 +187,9 @@ class ChatMemory:
 
     def clear(self) -> None:
         self._messages.clear()
+
+    def load_messages(self, messages: List[Message]) -> None:
+        self._messages = [dict(m) for m in messages]
 
     # ---- accessors ----
     def messages(self) -> List[Message]:

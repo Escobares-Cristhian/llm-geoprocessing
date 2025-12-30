@@ -4,6 +4,7 @@ google-genai>=1.46.0
 pydantic>=2.7
 pyyaml>=6
 click>=8.1
+psycopg2-binary
 
 # dev
 pytest>=7

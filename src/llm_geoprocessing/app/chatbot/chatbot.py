@@ -1,12 +1,14 @@
 import os
 from typing import Optional
 from llm_geoprocessing.app.llm.LLM import ChatGPT, Ollama, Gemini, ChatMemory
+from llm_geoprocessing.app.chatdb import get_chatdb
+from llm_geoprocessing.app.chatdb.context import set_session_id
 
 from llm_geoprocessing.app.logging_config import get_logger
 logger = get_logger("geollm")
 
 class Chatbot:
-    def __init__(self):
+    def __init__(self, persist: bool = True):
         # Gemini
         # self.chat = Gemini(model="gemini-3-pro-preview", quiet=True)        # 125.000 TokensPD but have free rate limit of 2 per minute, so it is useless for interactive chat
         # self.chat = Gemini(model="gemini-2.5-flash", quiet=True)      # 250 RPD
@@ -29,7 +31,19 @@ class Chatbot:
         # self.chat.config_api(temperature=1.0)
         # self.chat.set_rate_limit(500)  # 500 requests per minute
         
-        self.mem = ChatMemory()
+        self.chatdb = None
+        self.session_id = None
+        if persist:
+            self.chatdb = get_chatdb()
+            if self.chatdb.enabled:
+                self.chatdb.ensure_schema()
+                self.session_id = self.chatdb.create_session()
+                set_session_id(self.session_id)
+                self.mem = ChatMemory(chatdb=self.chatdb, session_id=self.session_id, persist=True)
+            else:
+                self.mem = ChatMemory(persist=False)
+        else:
+            self.mem = ChatMemory(persist=False)
         
         # Add general information to system
         self.mem.add_system(self._add_system_info())
@@ -57,17 +71,14 @@ class Chatbot:
     
     def clone(self, instructions_to_add: Optional[str] = None):
         """Create a clone of the chatbot with independent memory copy."""
-        cloned = Chatbot()
+        cloned = Chatbot(persist=False)
 
         # *** share the same LLM client so RPM limit is global across clones ***
         cloned.chat = self.chat
 
         # fresh memory for the clone
-        cloned.mem = ChatMemory()
-
-        # Copy all messages from the original to the clone
-        for msg in self.mem.messages():
-            cloned.mem.add(msg["role"], msg["content"])
+        cloned.mem = ChatMemory(persist=False)
+        cloned.mem.load_messages(self.mem.messages())
         
         if instructions_to_add is None:
             return cloned
