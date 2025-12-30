@@ -1,3 +1,4 @@
 fastapi
 uvicorn[standard]
 earthengine-api
+psycopg2-binary

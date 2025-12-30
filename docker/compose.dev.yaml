@@ -3,6 +3,12 @@ services:
     build: ../src/llm_geoprocessing/app/plugins/gee
     environment:
       EE_PRIVATE_KEY_PATH: /keys/gee-sa.json
+      POSTGIS_ENABLED: "true"
+      POSTGIS_HOST: "postgis"
+      POSTGIS_PORT: "5432"
+      POSTGIS_DB: "geollm"
+      POSTGIS_USER: "geollm"
+      POSTGIS_PASSWORD: "geollm"
     volumes:
       - ../secrets/gee-sa.json:/keys/gee-sa.json:ro
     ports:
