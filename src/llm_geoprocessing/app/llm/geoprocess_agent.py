@@ -829,7 +829,7 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg: str) -> Tuple[Chatbot, str] | s
     logger.debug(json.dumps(json_instructions, ensure_ascii=False, indent=2))
     logger.debug("*"*60)
     
-    # Save JSON generation in chat history
+    # Save JSON generation in chat history (But not show to user)
     chatbot.mem.add_assistant(f"Generated JSON instructions:\n{json.dumps(json_instructions, ensure_ascii=False, indent=2)}")
 
     msg_to_interpreter = geoprocess(json_instructions)

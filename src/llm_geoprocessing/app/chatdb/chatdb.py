@@ -32,6 +32,14 @@ def _uuid(value: Optional[str | uuid.UUID]) -> Optional[str]:
     return str(value)
 
 
+def _shown_to_user(role: str, content: str) -> bool:
+    if role == "system":
+        return False
+    if content.startswith("Generated JSON instructions:"):
+        return False
+    return True
+
+
 class ChatDB:
     def __init__(self) -> None:
         self.enabled: bool = _chatdb_enabled() and psycopg2 is not None
@@ -102,9 +110,27 @@ class ChatDB:
                         role text,
                         content text,
                         created_at timestamptz NOT NULL DEFAULT now(),
-                        metadata jsonb
+                        metadata jsonb,
+                        shown_to_user boolean NOT NULL DEFAULT true
                     );
                     """
+                )
+                cur.execute(
+                    "ALTER TABLE chatdb.messages ADD COLUMN IF NOT EXISTS shown_to_user boolean;"
+                )
+                cur.execute(
+                    """
+                    UPDATE chatdb.messages
+                    SET shown_to_user = false
+                    WHERE (role = 'system' OR content LIKE 'Generated JSON instructions:%')
+                      AND shown_to_user IS DISTINCT FROM false;
+                    """
+                )
+                cur.execute(
+                    "UPDATE chatdb.messages SET shown_to_user = true WHERE shown_to_user IS NULL;"
+                )
+                cur.execute(
+                    "ALTER TABLE chatdb.messages ALTER COLUMN shown_to_user SET DEFAULT true;"
                 )
                 cur.execute(
                     """
@@ -177,6 +203,7 @@ class ChatDB:
         role: str,
         content: str,
         metadata: Optional[dict] = None,
+        shown_to_user: Optional[bool] = None,
     ) -> None:
         if not self.enabled:
             return
@@ -188,10 +215,18 @@ class ChatDB:
             with conn.cursor() as cur:
                 cur.execute(
                     """
-                    INSERT INTO chatdb.messages (id, session_id, role, content, created_at, metadata)
-                    VALUES (%s, %s, %s, %s, now(), %s)
+                    INSERT INTO chatdb.messages
+                        (id, session_id, role, content, created_at, metadata, shown_to_user)
+                    VALUES (%s, %s, %s, %s, now(), %s, %s)
                     """,
-                    (_uuid(uuid.uuid4()), _uuid(session_id), role, content, self._json(metadata)),
+                    (
+                        _uuid(uuid.uuid4()),
+                        _uuid(session_id),
+                        role,
+                        content,
+                        self._json(metadata),
+                        bool(_shown_to_user(role, content) if shown_to_user is None else shown_to_user),
+                    ),
                 )
         except Exception:
             self._conn = None
