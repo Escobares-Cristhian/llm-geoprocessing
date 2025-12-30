@@ -208,6 +208,17 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
 
     # Clone chatbot to avoid modifying the original
     chat = chatbot.clone(instructions_to_add=summary_instructions)
+
+    def _store_assistant_reply(msg: str) -> None:
+        chatbot.mem.add_assistant(msg)
+        if getattr(chatbot.mem, "_persist", False):
+            return
+        chatdb = get_chatdb()
+        if not chatdb.enabled:
+            return
+        session_id = get_session_id() or getattr(chatbot, "session_id", None)
+        if session_id:
+            chatdb.insert_message(session_id, "assistant", msg, shown_to_user=True)
     
     MAX_TURNS = 8  # tiny safety to avoid infinite loops
 
@@ -252,7 +263,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
         q_msg = chat.send_message(q_prompt)
         chat_io.print_assistant_msg(q_msg) # show LLM's question to the user
         # Save assistant response in to original chat history
-        chatbot.mem.add_assistant(q_msg)
+        _store_assistant_reply(q_msg)
 
         # Get user answers
         valid_user_answer = False
