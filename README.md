@@ -1,29 +1,90 @@
-- To run the main.py just run:  
-`docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main`
+# LLM Geoprocessing
 
-- PD: To run with GUI, select use_gui=True in 'main.py' and also execute this in every new terminal:
-`xhost +local:`
-After execute the above command as normal
+This project is an LLM-driven geoprocessing app that turns chat requests into spatial workflows.
+It uses a FastAPI Google Earth Engine (GEE) microservice to run geoprocesses and export GeoTIFF tiles.
+Outputs are written to a shared host folder and can be uploaded to PostGIS when enabled.
+A Qt/X11 GUI mode is available for interactive use in supported environments.
+The Docker Compose stack includes three services: geollm (chat app), gee (GEE service), and postgis (optional).
 
----
+## Key features
 
-- To run the main.py with custom logger level (e.g., DEBUG) just run:
-`docker compose -f docker/compose.dev.yaml run --rm --build --env GEOLLM_LOG_LEVEL=DEBUG geollm python -m llm_geoprocessing.app.main`
+- Interactive chat modes for geoprocessing and interpreter workflows
+- FastAPI GEE plugin service for Earth Engine operations
+- GeoTIFF tile export to ./gee_out
+- Optional PostGIS upload target
+- Supports multiple LLM providers
 
-- To run the chat_only_llm.py just run:  
-`docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.experiments.chat_only_llm`
+## Requirements
 
-- To run the chatbot.py just run:  
-`docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.chatbot.chatbot`
+- Docker + Docker Compose
+- Optional: Linux with X11 if using the GUI
 
-- To get gee-sa.json file to authenticate with Google Earth Engine, execute this script in the terminal:
-`bash secrets/create_gee-sa.sh`
+## Quickstart (happy path)
 
-- For executing a JSON instruction file, run:
-`docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.dev_tests.run_geoprocess_json --file tmp/json_instruction_example.json`
+1) Copy `.env.example` to `.env`.
+2) Set at least one provider key in `.env`: `GEMINI_API_KEY` and/or `OPENAI_API_KEY`.
+3) Ensure `./secrets/gee-sa.json` exists (see `docs/DEVELOPMENT.md`).
+4) Start the app:
 
-- TO get the logs:
-`docker compose -f docker/compose.dev.yaml logs --no-log-prefix -f gee`
+```bash
+docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main
+```
 
-- To FIX Modis in PostGIS, add this Custom CRS in QGIS:
-`+proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs`
+If the services are started, the GEE FastAPI docs are at http://localhost:8000/docs.
+
+## Common commands (copy/paste)
+
+Start supporting services (gee + postgis) in background:
+
+```bash
+docker compose -f docker/compose.dev.yaml up -d gee postgis
+```
+
+Tail gee logs:
+
+```bash
+docker compose -f docker/compose.dev.yaml logs --no-log-prefix -f gee
+```
+
+Stop stack:
+
+```bash
+docker compose -f docker/compose.dev.yaml down
+```
+
+## Configuration (essentials)
+
+- `GEMINI_API_KEY`: Gemini API key for LLM access.
+- `OPENAI_API_KEY`: OpenAI API key for LLM access.
+- `GEE_PLUGIN_URL`: Override URL for the GEE FastAPI service if needed.
+- `GEO_OUT_DIR`: Container output directory (default `/gee_out`).
+- `POSTGIS_ENABLED`: Enable PostGIS upload when set to true.
+- `POSTGIS_HOST`: PostGIS hostname.
+- `POSTGIS_PORT`: PostGIS port.
+- `POSTGIS_DB`: PostGIS database name.
+- `POSTGIS_USER`: PostGIS user.
+- `POSTGIS_PASSWORD`: PostGIS password.
+- `POSTGIS_SCHEMA`: Target schema for uploads.
+- `POSTGIS_TABLE_PREFIX`: Prefix for created tables.
+- `POSTGIS_SRID`: SRID to use for uploads.
+
+For details beyond this overview, see `docs/DEVELOPMENT.md`.
+
+## Outputs
+
+Results are written to `./gee_out` on the host (mounted as `/gee_out` in containers).
+The GEE service produces tiled GeoTIFF outputs.
+
+## Troubleshooting
+
+- Missing Earth Engine credentials: see `docs/DEVELOPMENT.md`.
+- GUI/X11 DISPLAY issues: see `docs/DEVELOPMENT.md`.
+- PostGIS connection failures: see `docs/DEVELOPMENT.md`.
+
+## Development documentation
+
+Architecture, JSON contract, plugin API details, testing, and extending geoprocesses are documented in `docs/DEVELOPMENT.md`.
+
+## License
+
+See `LICENSE.txt`.
