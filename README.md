@@ -81,6 +81,16 @@ The GEE service produces tiled GeoTIFF outputs.
 - GUI/X11 DISPLAY issues: see `docs/DEVELOPMENT.md`.
 - PostGIS connection failures: see `docs/DEVELOPMENT.md`.
 
+## Known CRS issues and QGIS workaround
+
+- MODIS sinusoidal tiles may require a custom CRS in QGIS. Use:
+
+```text
++proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs
+```
+
+- The geoprocess agent also attempts an automatic GDAL SRS fix for MODIS sinusoidal rasters.
+
 ## Development documentation
 
 Architecture, JSON contract, plugin API details, testing, and extending geoprocesses are documented in `docs/DEVELOPMENT.md`.
