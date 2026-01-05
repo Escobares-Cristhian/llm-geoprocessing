@@ -93,6 +93,7 @@ The GEE service produces tiled GeoTIFF outputs.
 
 ## Development documentation
 
+The GEE plugin is the default implementation and can be replaced as needed, see `docs/DEVELOPMENT.md`.
 Architecture, JSON contract, plugin API details, testing, and extending geoprocesses are documented in `docs/DEVELOPMENT.md`.
 
 ## License
