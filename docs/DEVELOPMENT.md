@@ -79,54 +79,130 @@ rm -rf ./.data/postgis
 
 ## 3) Architecture overview
 
-```mermaid
-flowchart LR
-  geollm[geollm\nLLM chat + executor]
-  gee[gee\nFastAPI GEE service]
-  out[(./gee_out)]
-  postgis[(postgis)]
+![Architecture overview](architecture.png)
 
-  geollm -->|HTTP GET /tif/{geoprocess_name}| gee
-  gee -->|tile URLs + tiling metadata| geollm
-  geollm -->|download + GDAL merge| out
-  geollm -.->|optional raster upload| postgis
-  geollm -.->|optional chat logs| postgis
-```
+This system routes every user message through a small orchestration layer and then runs one of two LLM-driven paths:
 
-- geollm: interactive app that selects mode, builds JSON instructions, executes geoprocesses, downloads tiles, merges outputs, and optionally uploads to PostGIS.
-- gee: FastAPI microservice that runs Earth Engine operations and returns tiled GeoTIFF download URLs.
-- postgis: optional persistence for raster outputs and chat/run logs (bind-mounted data in `./.data/postgis`).
-- Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
+- **Interpreter path**: produce a natural-language answer (no geoprocess execution).
+- **Geoprocess path**: build a structured geoprocess instruction, execute it, persist outputs/metadata, and then (optionally) describe results back to the user.
+
+### End-to-end flow (as in the diagram)
+
+1. **User message → Chatbot**
+   - The Chatbot receives the message and **stores chat history in ChatDB (PostGIS)**.
+2. **Mode selection (`mode_selection_agent.py`)**
+   - The Chatbot calls the **LLM Mode Selector Agent** (`mode_selection_agent.py`) to decide whether the message is a geoprocess request.
+   - If **Geoprocess** → go to the Geoprocess path.
+   - If **Interpreter** → go to the Interpreter path.
+3. **Interpreter path**
+   - **LLM Interpreter Agent** generates the **natural-language response**.
+   - The response is **stored in ChatDB** and **shown to the user**.
+4. **Geoprocess path**
+   - **LLM Geoprocess Agent** builds the geoprocess instruction (JSON) using plugin-provided context.
+   - If required inputs are missing, it can trigger a follow-up question via the Chatbot (the “asks for missing information” loop).
+   - The **Geoprocess executor** runs the task and produces:
+     - **New GeoData** (e.g., GeoTIFFs/tiles/merged outputs)
+     - **New GeoData metadata**
+   - Outputs are sent to:
+     - **Display of “New GeoData”**
+     - **“New GeoData” metadata**, which is **saved to ChatDB**
+   - Postprocessing can also persist outputs and register pipelines.
+
+### Plugin layers (what they contribute)
+
+The plugin system is split by responsibility and is the main source of “grounding” for the LLM agents:
+
+- **Geoprocess Plugins**
+  - Provide **documentation + metadata** for custom geoprocesses (available operations, parameters, constraints).
+  - Support extracting/declaring **custom geoprocesses** that the Geoprocess Agent can execute.
+
+- **Preprocessing Plugins**
+  - **Extract metadata & documentation** needed to construct valid instructions.
+  - **Extract data & styles** (resolve datasets, user-selected inputs, visualization/style parameters).
+  - These steps interact with the **User DB** to fetch user-scoped assets/preferences.
+
+- **Postprocessing Plugin**
+  - Responsible for **showing results**, **saving to DB**, and **pipeline-related actions** (registering or chaining steps).
+  - Also interacts with the **User DB** (user-scoped persistence) and/or ChatDB (run artifacts).
+
+### Persistence and logging
+
+- **ChatDB (PostGIS)** stores:
+  - chat history
+  - run logs (logging is used across the entire framework)
+  - produced “New GeoData” metadata
+  - (optionally) raster/vector outputs, if you upload results to PostGIS
+
+- **User DB** is the user-scoped store used by preprocessing/postprocessing (datasets, styles, pipelines, preferences), before and after the execution of this framework. It is not part of this project.
+
+### Containers/services mapping
+
+- **geollm**: main interactive app that receives the user message, calls `mode_selection_agent.py`, runs the LLM agents (mode selector / geoprocess / interpreter), executes geoprocess workflows, downloads tiles, merges outputs, and optionally uploads to PostGIS.
+- **gee**: FastAPI microservice that runs Earth Engine operations and returns tiled GeoTIFF download URLs.
+- **postgis**: optional persistence for ChatDB artifacts and raster outputs (bind-mounted data in `./.data/postgis`).
+  - Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
+
 
 ## 4) Runtime flows (end-to-end)
 
+This section describes the **runtime sequence** that happens inside the components defined in **[3) Architecture overview](#3-architecture-overview)** and adds the **implementation-specific** details (schemas, endpoints, env vars, and debugging points).
+
 ### Mode selection flow
-- The app uses `mode_selector_agent` to choose between geoprocessing and interpreter modes.
-- Available LLM-visible modes are Spanish labels: "Geoproceso", "Consulta de Capacidades", "Consulta o Interpretacion de Datos", and "Consulta no geoespacial".
-- "Geoproceso" maps to geoprocessing; the other modes map to interpreter or a follow-up prompt.
+- The Chatbot delegates routing to `mode_selection_agent.py`.
+- The agent returns the selected path (**Geoprocess** vs **Interpreter**) and the Chatbot dispatches execution accordingly.
 
 ### Geoprocessing flow
-1) The LLM produces a JSON wrapper (`json`, `complete`, `questions`) according to the strict schema in `geoprocess_agent.py`.
-2) The JSON is validated; if incomplete, the system asks follow-up questions and retries.
-3) Each action is executed in order:
-   - Product IDs in `input_json.product` are resolved to full product names from `products`.
-   - `runtime_executor.py` calls `/tif/{geoprocess_name}` on the GEE service (or a custom executor if configured).
-4) The GEE service returns a list of tile URLs and tiling metadata.
-5) The app downloads tiles into `GEO_OUT_DIR/gee_tiles`, merges them with GDAL into `GEO_OUT_DIR/gee_merged`, and fixes MODIS sinusoidal SRS when detected.
-6) If PostGIS is enabled, the merged GeoTIFF is uploaded via raster2pgsql piped into psql.
-7) A summary message is passed to the interpreter flow.
+1) **Preprocessing context**
+   - Preprocessing plugins assemble the context required to build a valid instruction:
+     - geoprocess docs/metadata
+     - data selection + style inputs (may read from the User DB)
+
+2) **Instruction build + validation**
+   - The LLM Geoprocess Agent produces the strict JSON wrapper:
+     - `json`, `complete`, `questions`
+   - The runtime validates the schema before executing.
+
+3) **Clarification loop (only if needed)**
+   - If `complete=false` or `questions` is non-empty, the flow loops back to the user via the Chatbot until the instruction is executable.
+
+4) **Execution**
+   - The executor runs each action in order:
+     - Product IDs in `input_json.product` are resolved to full product names from `products`.
+     - The runtime calls the active geoprocess plugin (HTTP service or module executor).
+       - HTTP plugins use the `GET /tif/:geoprocess_name` style endpoint.
+
+5) **Outputs + postprocessing**
+   - The geoprocess produces:
+     - New GeoData (files/tiles/merged results)
+     - Metadata describing the produced GeoData
+   - Postprocessing plugins may:
+     - display results
+     - persist outputs and/or register pipelines (as defined in [3) Architecture overview](#3-architecture-overview))
+
+6) **Hand-off to interpreter**
+   - A geoprocess summary (plus key metadata) is passed into the interpreter path to generate the user-facing explanation.
+
+> Persistence (ChatDB/PostGIS) follows [3) Architecture overview](#3-architecture-overview) and is not repeated here.
 
 ### Interpreter flow
-- `interpreter_agent.py` builds a response using the original user request plus the geoprocessing summary.
-- The prompt currently instructs the model to produce a plausible response even when no direct data retrieval exists, so results are synthesized text rather than analytical statistics.
+- The LLM Interpreter Agent generates the natural-language response from:
+  - the user request, and
+  - (optionally) the geoprocess summary produced above.
+- Storage/return behavior follows [3) Architecture overview](#3-architecture-overview).
 
 ### What to inspect when it goes wrong
-- Mode selection output: ensure the LLM returns a valid mode string.
-- JSON validation errors: check for missing keys, invalid dates, or invalid bbox shape.
-- Runtime executor errors: verify `GEE_PLUGIN_URL`, endpoint name, and query params.
-- GEE service errors: inspect `gee` logs and FastAPI error `detail` messages.
-- Output staging: confirm `GEO_OUT_DIR` is writable and GDAL tools exist.
-- PostGIS failures: verify connectivity and credentials and inspect `chatdb` or upload errors.
+- **Mode selection output**: ensure `mode_selection_agent.py` chooses the intended path.
+- **Plugin context**: verify preprocessing loaded expected metadata/data/style context.
+- **JSON validation**: check missing keys (`json/complete/questions`), invalid dates, invalid bbox shape, or schema mismatches.
+- **Executor / plugin calls**:
+  - verify `GEE_PLUGIN_URL`
+  - verify endpoint names (`/tif/:geoprocess_name`)
+  - verify query params passed to the plugin
+- **Postprocessing + persistence**: verify ChatDB logging and optional PostGIS uploads behave as expected.
+- **Output staging**:
+  - confirm `GEO_OUT_DIR` is writable
+  - confirm GDAL tools exist in the runtime
+  - confirm outputs appear under the host `./gee_out` (mounted as `/gee_out` in `geollm`)
 
 ## 5) Configuration reference (complete, dev-oriented)
 
