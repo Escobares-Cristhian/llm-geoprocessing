@@ -18,6 +18,7 @@ Table of contents:
 - [13) Extending the system (adding a new geoprocess)](#13-extending-the-system-adding-a-new-geoprocess)
 - [14) LLM providers (Gemini/OpenAI/Ollama)](#14-llm-providers-geminiopenaiollama)
 - [15) GUI / Qt development notes](#15-gui--qt-development-notes)
+- [16) Plugin replacement and multi-plugin notes](#16-plugin-replacement-and-multi-plugin-notes)
 
 ## 1) Dev quickstart
 
@@ -614,3 +615,29 @@ xhost +local:
 ### Common GUI/X11 errors
 - `Could not connect to display` -> check `DISPLAY` and re-run the X11 authorization command on the host.
 - Qt plugin errors -> confirm X11 libs are present (dev image includes them).
+
+## 16) Plugin replacement and multi-plugin notes
+
+### How the current plugin is wired
+- `src/llm_geoprocessing/app/plugins/preprocessing_plugin.py` and `src/llm_geoprocessing/app/plugins/geoprocessing_plugin.py` are thin delegates to `src/llm_geoprocessing/app/plugins/gee/*`.
+- `src/llm_geoprocessing/app/plugins/runtime_executor.py` delegates to `src/llm_geoprocessing/app/plugins/gee/runtime_executor.py`.
+- The GEE runtime executor uses either a Python module (`ACTIVE_PLUGIN_EXECUTOR`) or the HTTP adaptor (`GEE_PLUGIN_URL`).
+- `docker/compose.dev.yaml` builds the `gee` service from `src/llm_geoprocessing/app/plugins/gee` and exposes port 8000.
+
+### Replace with another plugin (single-plugin scenario)
+1) Implement the plugin itself:
+   - HTTP service option: expose `GET /tif/{geoprocess_name}` endpoints.
+   - Python module option: provide `execute_geoprocess(name, params) -> dict`.
+2) Update LLM-visible metadata and docs:
+   - Point `src/llm_geoprocessing/app/plugins/preprocessing_plugin.py` and `src/llm_geoprocessing/app/plugins/geoprocessing_plugin.py` to your plugin metadata/docs.
+3) Update execution wiring:
+   - If using HTTP, update `docker/compose.dev.yaml` to build/run your plugin container and set `GEE_PLUGIN_URL` to it.
+   - If using a module, set `ACTIVE_PLUGIN_EXECUTOR` to your module path and keep/remove the HTTP service as needed.
+4) Keep the response contract compatible:
+   - HTTP adaptor accepts either `tiles` + `tiling` (tiled outputs) or `url`/`tif_url` (single output).
+   - Python executor should return `output_url` or `output_urls`, optionally with `tiling`.
+
+### Multi-plugin scenario (untested)
+- The framework assumes a single active geoprocessing plugin (single metadata source + single executor).
+- Supporting multiple plugins likely requires: namespacing geoprocess names, a routing layer in the executor, merged capability docs, and JSON contract changes to select a target plugin.
+- This is not tested and may require deeper changes across the agents and runtime.
