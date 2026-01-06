@@ -13,7 +13,7 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
 - Interactive chat modes for geoprocessing and interpreter workflows
 - FastAPI GEE plugin service for Earth Engine operations
 - GeoTIFF tile export to ./gee_out
-- Optional PostGIS upload target
+- Optional PostGIS upload target, logging, and messages history with id per session and id per object (output, log, message)
 - Supports multiple LLM providers
 
 ## What it can do
