@@ -206,24 +206,14 @@ This section describes the **runtime sequence** that happens inside the componen
 
 ## 5) Configuration reference (complete, dev-oriented)
 
-### LLM providers (geollm)
+### From file `.env` (Copy `.env.example` and edit as needed):
+
+LLM provider keys (geollm):
 - `GEMINI_API_KEY`: Purpose: Gemini API auth. Service: geollm. Default: (none). Example: `GEMINI_API_KEY=...`.
 - `GOOGLE_API_KEY`: Purpose: fallback key for Gemini. Service: geollm. Default: (none). Example: `GOOGLE_API_KEY=...`.
 - `OPENAI_API_KEY`: Purpose: OpenAI auth for ChatGPT. Service: geollm. Default: (none). Example: `OPENAI_API_KEY=...`.
-- `OLLAMA_BASE_URL`: Purpose: base URL for Ollama HTTP API. Service: geollm. Default: `http://localhost:11434`. Example: `OLLAMA_BASE_URL=http://localhost:11434`.
-- `OLLAMA_MODEL`: Purpose: model name to request from Ollama. Service: geollm. Default: `gemma3:1b-it-qat`. Example: `OLLAMA_MODEL=gemma3:12b-cloud`.
-- `OLLAMA_NUM_CTX`: Purpose: context window for Ollama requests (tokens). Service: geollm. Default: `8192`. Example: `OLLAMA_NUM_CTX=32768`.
-- `CONTEXT`: Purpose: fallback for `OLLAMA_NUM_CTX` if that is unset. Service: geollm. Default: (unset). Example: `CONTEXT=8192`.
 
-### GEE plugin and outputs (geollm)
-- `GEE_PLUGIN_URL`: Purpose: base URL for the GEE FastAPI service. Service: geollm (and JSON test runner). Default: `http://gee:8000`. Example: `GEE_PLUGIN_URL=http://localhost:8000`.
-- `GEO_OUT_DIR`: Purpose: base output directory for tiles/merged GeoTIFFs. Service: geollm. Default: `/tmp`. Example: `GEO_OUT_DIR=/gee_out`.
-
-### Earth Engine service (gee)
-- `EE_PRIVATE_KEY_PATH`: Purpose: path to service account JSON inside the gee container. Service: gee. Default: `/keys/gee-sa.json`. Example: `EE_PRIVATE_KEY_PATH=/keys/gee-sa.json`.
-- `EE_PROJECT`: Purpose: explicit GEE project id to use at initialization. Service: gee. Default: (unset; falls back to the service account `project_id`). Example: `EE_PROJECT=my-ee-project`.
-
-### PostGIS and ChatDB (geollm, gee)
+PostGIS and ChatDB (geollm, gee):
 - `POSTGIS_ENABLED`: Purpose: enable PostGIS uploads and chatdb logging. Service: geollm and gee. Default: `false`. Example: `POSTGIS_ENABLED=true`.
 - `POSTGIS_HOST`: Purpose: PostGIS host name. Service: geollm and gee. Default: `localhost`. Example: `POSTGIS_HOST=postgis`.
 - `POSTGIS_PORT`: Purpose: PostGIS port. Service: geollm and gee. Default: `5432`. Example: `POSTGIS_PORT=5432`.
@@ -232,16 +222,31 @@ This section describes the **runtime sequence** that happens inside the componen
 - `POSTGIS_PASSWORD`: Purpose: database password. Service: geollm and gee. Default: `geollm`. Example: `POSTGIS_PASSWORD=geollm`.
 - `POSTGIS_SCHEMA`: Purpose: target schema for raster uploads. Service: geollm. Default: `public`. Example: `POSTGIS_SCHEMA=public`.
 - `POSTGIS_TABLE_PREFIX`: Purpose: table prefix for uploaded rasters. Service: geollm. Default: `gee_output_`. Example: `POSTGIS_TABLE_PREFIX=gee_output_`.
-- `POSTGIS_SRID`: Purpose: intended SRID override for uploads (not used by the current uploader). Service: geollm. Default: (unset). Example: `POSTGIS_SRID=4326`.
 - `CHATDB_ENABLED`: Purpose: enable chat/run logging tables in PostGIS. Service: geollm and gee. Default: follows `POSTGIS_ENABLED`. Example: `CHATDB_ENABLED=true`.
 
-### Logging (geollm)
+Note: `docker/compose.dev.yaml` sets container defaults for several PostGIS vars; update it if you want those values to differ from `.env`.
+
+### From file `docker/compose.dev.yaml` (edit service `environment:`)
+
+GEE plugin and outputs (geollm):
+- `GEE_PLUGIN_URL`: Purpose: base URL for the GEE FastAPI service. Service: geollm (and JSON test runner). Default: `http://gee:8000` (compose uses `http://localhost:8000`). Example: `GEE_PLUGIN_URL=http://localhost:8000`.
+- `GEO_OUT_DIR`: Purpose: base output directory for tiles/merged GeoTIFFs. Service: geollm. Default: `/tmp`. Example: `GEO_OUT_DIR=/gee_out`.
+
+Earth Engine service (gee):
+- `EE_PRIVATE_KEY_PATH`: Purpose: path to service account JSON inside the gee container. Service: gee. Default: `/keys/gee-sa.json`. Example: `EE_PRIVATE_KEY_PATH=/keys/gee-sa.json`.
+- `EE_PROJECT`: Purpose: explicit GEE project id to use at initialization. Service: gee. Default: (unset; falls back to the service account `project_id`). Example: `EE_PROJECT=my-ee-project`.
+
+LLM runtime options (geollm):
+- `OLLAMA_BASE_URL`: Purpose: base URL for Ollama HTTP API. Service: geollm. Default: `http://localhost:11434`. Example: `OLLAMA_BASE_URL=http://localhost:11434`.
+- `OLLAMA_MODEL`: Purpose: model name to request from Ollama. Service: geollm. Default: `gemma3:1b-it-qat`. Example: `OLLAMA_MODEL=gemma3:12b-cloud`.
+- `OLLAMA_NUM_CTX`: Purpose: context window for Ollama requests (tokens). Service: geollm. Default: `8192`. Example: `OLLAMA_NUM_CTX=32768`.
+- `CONTEXT`: Purpose: fallback for `OLLAMA_NUM_CTX` if that is unset. Service: geollm. Default: (unset). Example: `CONTEXT=8192`.
 - `GEOLLM_LOG_LEVEL`: Purpose: log level for geollm (INFO/DEBUG/etc.). Service: geollm. Default: `INFO`. Example: `GEOLLM_LOG_LEVEL=DEBUG`.
 
-### GUI (geollm)
+GUI (geollm):
 - `DISPLAY`: Purpose: X11 display for Qt GUI. Service: geollm. Default: (unset). Example: `DISPLAY=:0`.
 
-### Plugin execution override (geollm)
+Plugin execution override (geollm):
 - `ACTIVE_PLUGIN_EXECUTOR`: Purpose: Python module path that exposes `execute_geoprocess(name, params)` for custom executors. Service: geollm. Default: (unset; uses GEE HTTP adaptor). Example: `ACTIVE_PLUGIN_EXECUTOR=llm_geoprocessing.app.plugins.runtime`.
 
 ## 6) Docker & networking notes

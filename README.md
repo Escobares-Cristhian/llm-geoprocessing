@@ -54,10 +54,10 @@ docker compose -f docker/compose.dev.yaml down
 
 ## Configuration (essentials)
 
-- `GEMINI_API_KEY`: Gemini API key for LLM access.
-- `OPENAI_API_KEY`: OpenAI API key for LLM access.
-- `GEE_PLUGIN_URL`: Override URL for the GEE FastAPI service if needed.
-- `GEO_OUT_DIR`: Container output directory (default `/gee_out`).
+### From file `.env` (Copy `.env.example` and edit as needed):
+
+- `GEMINI_API_KEY`: Gemini API key for LLM access (needed only if using Gemini)
+- `OPENAI_API_KEY`: OpenAI API key for LLM access (needed only if using OpenAI)
 - `POSTGIS_ENABLED`: Enable PostGIS upload when set to true.
 - `POSTGIS_HOST`: PostGIS hostname.
 - `POSTGIS_PORT`: PostGIS port.
@@ -66,7 +66,11 @@ docker compose -f docker/compose.dev.yaml down
 - `POSTGIS_PASSWORD`: PostGIS password.
 - `POSTGIS_SCHEMA`: Target schema for uploads.
 - `POSTGIS_TABLE_PREFIX`: Prefix for created tables.
-- `POSTGIS_SRID`: SRID to use for uploads.
+
+### From file `docker/compose.dev.yaml`:
+
+- `GEE_PLUGIN_URL`: Override URL for the GEE FastAPI service if needed.
+- `GEO_OUT_DIR`: Container output directory (default `/gee_out`).
 
 For details beyond this overview, see `docs/DEVELOPMENT.md`.
 
