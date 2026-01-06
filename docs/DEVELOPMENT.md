@@ -91,48 +91,49 @@ This system routes every user message through a small orchestration layer and th
 ### End-to-end flow (as in the diagram)
 
 1. **User message → Chatbot**
-   - The Chatbot receives the message and **stores chat history in ChatDB (PostGIS)**.
-2. **Mode selection (`mode_selection_agent.py`)**
-   - The Chatbot calls the **LLM Mode Selector Agent** (`mode_selection_agent.py`) to decide whether the message is a geoprocess request.
+   - The Chatbot receives the message and **saves chat history in ChatDB (PostGIS)**.
+2. **Mode selection (LLM Agent Mode Selector)**
+   - The Chatbot calls the **LLM Agent Mode Selector** (`mode_selection_agent.py`) to decide the path.
    - If **Geoprocess** → go to the Geoprocess path.
    - If **Interpreter** → go to the Interpreter path.
 3. **Interpreter path**
-   - **LLM Interpreter Agent** generates the **natural-language response**.
-   - The response is **stored in ChatDB** and **shown to the user**.
+   - **LLM Interpreter Agent** generates the **Natural Language Response**.
+   - The response is **saved in ChatDB** and **shown to the user**.
 4. **Geoprocess path**
    - **LLM Geoprocess Agent** builds the geoprocess instruction (JSON) using plugin-provided context.
-   - If required inputs are missing, it can trigger a follow-up question via the Chatbot (the “asks for missing information” loop).
-   - The **Geoprocess executor** runs the task and produces:
+   - If required inputs are missing, the **Geoprocessing module requests missing information** via the Chatbot.
+   - The **Geoprocess** step runs and produces:
      - **New GeoData** (e.g., GeoTIFFs/tiles/merged outputs)
-     - **New GeoData metadata**
+     - **Metadata of "New GeoData"**
    - Outputs are sent to:
-     - **Display of “New GeoData”**
-     - **“New GeoData” metadata**, which is **saved to ChatDB**
-   - Postprocessing can also persist outputs and register pipelines.
+     - **Display of "New GeoData"**
+     - **Metadata of "New GeoData"**, which is **saved in ChatDB**
+   - **Postprocessing plugin** can also **show data**, **save to DB**, and handle **pipelines**.
+   - If applicable, the Geoprocess output is passed to the **LLM Interpreter Agent**.
 
 ### Plugin layers (what they contribute)
 
 The plugin system is split by responsibility and is the main source of “grounding” for the LLM agents:
 
-- **Geoprocess Plugins**
-  - Provide **documentation + metadata** for custom geoprocesses (available operations, parameters, constraints).
-  - Support extracting/declaring **custom geoprocesses** that the Geoprocess Agent can execute.
+- **Geoprocessing plugins**
+  - Provide **documentation & metadata of custom geoprocesses**.
+  - **Extract custom geoprocesses** that the LLM Geoprocess Agent can execute.
 
-- **Preprocessing Plugins**
+- **Preprocessing plugin**
   - **Extract metadata & documentation** needed to construct valid instructions.
-  - **Extract data & styles** (resolve datasets, user-selected inputs, visualization/style parameters).
+  - **Extract data** and **extract styles** (resolve datasets, user-selected inputs, visualization/style parameters).
   - These steps interact with the **User DB** to fetch user-scoped assets/preferences.
 
-- **Postprocessing Plugin**
-  - Responsible for **showing results**, **saving to DB**, and **pipeline-related actions** (registering or chaining steps).
+- **Postprocessing plugin**
+  - Responsible for **showing data**, **saving to DB**, and **pipelines, etc**.
   - Also interacts with the **User DB** (user-scoped persistence) and/or ChatDB (run artifacts).
 
 ### Persistence and logging
 
 - **ChatDB (PostGIS)** stores:
   - chat history
-  - run logs (logging is used across the entire framework)
-  - produced “New GeoData” metadata
+  - **Logging used throughout the framework**
+  - **Metadata of "New GeoData"**
   - (optionally) raster/vector outputs, if you upload results to PostGIS
 
 - **User DB** is the user-scoped store used by preprocessing/postprocessing (datasets, styles, pipelines, preferences), before and after the execution of this framework. It is not part of this project.
