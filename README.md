@@ -40,7 +40,7 @@ docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_
 
 If the services are started, the GEE FastAPI docs are at http://localhost:8000/docs.
 
-## Optional for gee plugin: 
+## Optional for gee plugin
 ### Generate gee-sa.json (helper script)
 The helper script uses `gcloud` to create a service account key. Replace `<PROJECT_ID>` in the script before running it.
 
@@ -49,7 +49,7 @@ cd secrets
 bash create_gee-sa.sh
 ```
 
-### Requeriments for create_gee-sa.sh:
+### Requeriments for create_gee-sa.sh
 
 - `gcloud` CLI installed and authenticated (`gcloud auth login`).
   - Install guide: https://cloud.google.com/sdk/docs/install
