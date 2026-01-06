@@ -124,7 +124,7 @@ The GEE service produces tiled GeoTIFF outputs.
 +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs
 ```
 
-- The geoprocess agent also attempts an automatic GDAL SRS fix for MODIS sinusoidal rasters.
+- The geoprocess agent also attempts an automatic GDAL SRS fix for MODIS sinusoidal rasters, but only works for the file in disk, not for PostGIS uploads.
 
 ## Development documentation
 
