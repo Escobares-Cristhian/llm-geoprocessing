@@ -271,6 +271,27 @@ Plugin execution override (geollm):
 - Container path (gee): `/keys/gee-sa.json`
 - Env: `EE_PRIVATE_KEY_PATH=/keys/gee-sa.json`
 
+### Generate gee-sa.json (helper script)
+The helper script uses `gcloud` to create a service account key. Replace `<PROJECT_ID>` in the script before running it.
+
+```bash
+cd secrets
+bash create_gee-sa.sh
+```
+
+#### Requeriments for create_gee-sa.sh:
+
+- `gcloud` CLI installed and authenticated (`gcloud auth login`).
+  - Install guide: https://cloud.google.com/sdk/docs/install
+- An existing Google Cloud project with billing enabled.
+  - Project creation guide: https://cloud.google.com/resource-manager/docs/creating-managing-projects
+- Earth Engine API enabled for that project.
+  - Enable APIs guide: https://cloud.google.com/endpoints/docs/openapi/enable-api
+- Permissions to create service accounts and keys in the project.
+  - Earth Engine service account guide: https://developers.google.com/earth-engine/guides/service_account?hl=es-419#set-up-rest-api-access
+
+This produces `./secrets/gee-sa.json` (because the script writes `./gee-sa.json` in the current directory).
+
 ### Initialization behavior
 - On startup, `gee_geoprocess.py` checks `EE_PRIVATE_KEY_PATH`.
 - If the file exists, it initializes EE with service account credentials and uses `EE_PROJECT` (or the JSON `project_id`).

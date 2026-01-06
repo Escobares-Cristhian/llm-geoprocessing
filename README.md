@@ -18,12 +18,19 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
 
 - Docker + Docker Compose
 - Optional: Linux with X11 if using the GUI
+- Optional: `gcloud` CLI for the GEE plugin service account setup (not required for the framework)
 
 ## Quickstart (happy path)
 
 1) Copy `.env.example` to `.env`.
 2) Set at least one provider key in `.env`: `GEMINI_API_KEY` and/or `OPENAI_API_KEY`.
 3) Ensure `./secrets/gee-sa.json` exists (see `docs/DEVELOPMENT.md`).
+
+Generate it with the helper script if needed:
+
+```bash
+bash secrets/create_gee-sa.sh
+```
 4) Start the app:
 
 ```bash
@@ -31,6 +38,27 @@ docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_
 ```
 
 If the services are started, the GEE FastAPI docs are at http://localhost:8000/docs.
+
+### Generate gee-sa.json (helper script)
+The helper script uses `gcloud` to create a service account key. Replace `<PROJECT_ID>` in the script before running it.
+
+```bash
+cd secrets
+bash create_gee-sa.sh
+```
+
+#### Requeriments for create_gee-sa.sh:
+
+- `gcloud` CLI installed and authenticated (`gcloud auth login`).
+  - Install guide: https://cloud.google.com/sdk/docs/install
+- An existing Google Cloud project with billing enabled.
+  - Project creation guide: https://cloud.google.com/resource-manager/docs/creating-managing-projects
+- Earth Engine API enabled for that project.
+  - Enable APIs guide: https://cloud.google.com/endpoints/docs/openapi/enable-api
+- Permissions to create service accounts and keys in the project.
+  - Earth Engine service account guide: https://developers.google.com/earth-engine/guides/service_account?hl=es-419#set-up-rest-api-access
+
+This produces `./secrets/gee-sa.json` (because the script writes `./gee-sa.json` in the current directory).
 
 ## Common commands (copy/paste)
 
@@ -67,8 +95,9 @@ docker compose -f docker/compose.dev.yaml down
 - `POSTGIS_SCHEMA`: Target schema for uploads.
 - `POSTGIS_TABLE_PREFIX`: Prefix for created tables.
 
-### From file `docker/compose.dev.yaml`:
+### From file `docker/compose.dev.yaml` (Defaults values can be changed here, but no need to edit):
 
+- `EE_PRIVATE_KEY_PATH`: Path to the Earth Engine service account JSON inside the gee container.
 - `GEE_PLUGIN_URL`: Override URL for the GEE FastAPI service if needed.
 - `GEO_OUT_DIR`: Container output directory (default `/gee_out`).
 
