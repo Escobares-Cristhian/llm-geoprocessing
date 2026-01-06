@@ -162,8 +162,8 @@ For updating PNG/SVG exports, open the `.puml` files in VS Code and export them 
 UML class diagram:
 ![UML class diagram](uml/classes_llm_geoprocessing.svg)
 
-UML sequence diagram:
-![UML sequence diagram](uml/packages_llm_geoprocessing.svg)
+UML packages diagram:
+![UML packages diagram](uml/packages_llm_geoprocessing.svg)
 
 
 ## 4) Runtime flows (end-to-end)
