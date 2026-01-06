@@ -81,6 +81,8 @@ rm -rf ./.data/postgis
 
 ![Architecture overview](architecture.png)
 
+(Components in UML incoming)
+
 This system routes every user message through a small orchestration layer and then runs one of two LLM-driven paths:
 
 - **Interpreter path**: produce a natural-language answer (no geoprocess execution).
