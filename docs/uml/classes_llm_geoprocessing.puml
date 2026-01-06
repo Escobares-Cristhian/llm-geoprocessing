@@ -1,5 +1,15 @@
 @startuml classes_llm_geoprocessing
 set namespaceSeparator none
+class "cli.chat_io.ChatIO" as cli.chat_io.ChatIO {
+  model_name : str
+  use_gui : bool
+  user_name : str
+  ask_user_input() -> str
+  print_assistant_msg(msg: str) -> None
+  print_command_msg(command_name: str, msg: str) -> None
+  print_mode_selected(mode_name: str) -> None
+  print_user_msg(msg: str) -> None
+}
 class "llm_geoprocessing.app.chatbot.chatbot.Chatbot" as llm_geoprocessing.app.chatbot.chatbot.Chatbot {
   chat
   chatdb : NoneType
