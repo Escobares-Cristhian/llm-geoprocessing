@@ -18,7 +18,8 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
 
 - Docker + Docker Compose
 - Optional: Linux with X11 if using the GUI
-- Optional: `gcloud` CLI for the GEE plugin service account setup (not required for the framework)
+- Optional: `gcloud` CLI for the GEE plugin service account setup (not required for the framework). See `docs/DEVELOPMENT.md` for details.
+- Optional: Ollama on the host if you want to run OLLAMA models. Install guide: https://ollama.com/download
 
 ## Quickstart (happy path)
 
@@ -84,8 +85,8 @@ docker compose -f docker/compose.dev.yaml down
 
 ### From file `.env` (Copy `.env.example` and edit as needed):
 
-- `GEMINI_API_KEY`: Gemini API key for LLM access (needed only if using Gemini)
-- `OPENAI_API_KEY`: OpenAI API key for LLM access (needed only if using OpenAI)
+- `GEMINI_API_KEY`: Gemini API key for LLM access (needed only if using Gemini). Get a key: https://aistudio.google.com/app/apikey
+- `OPENAI_API_KEY`: OpenAI API key for LLM access (needed only if using OpenAI). Get a key: https://platform.openai.com/api-keys
 - `POSTGIS_ENABLED`: Enable PostGIS upload when set to true.
 - `POSTGIS_HOST`: PostGIS hostname.
 - `POSTGIS_PORT`: PostGIS port.
@@ -95,7 +96,7 @@ docker compose -f docker/compose.dev.yaml down
 - `POSTGIS_SCHEMA`: Target schema for uploads.
 - `POSTGIS_TABLE_PREFIX`: Prefix for created tables.
 
-### From file `docker/compose.dev.yaml` (Defaults values can be changed here, but no need to edit):
+### From file `docker/compose.dev.yaml` (Defaults values can be changed here, but there is no need to edit it for basic use):
 
 - `EE_PRIVATE_KEY_PATH`: Path to the Earth Engine service account JSON inside the gee container.
 - `GEE_PLUGIN_URL`: Override URL for the GEE FastAPI service if needed.

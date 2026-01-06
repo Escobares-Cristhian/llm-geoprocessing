@@ -684,9 +684,24 @@ bash tests/gee_plugins_json_tests/run_json_test.sh
 - Call the provider's `config_api(...)` to set model and tuning.
 
 ### Required env vars per provider
-- Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`.
-- OpenAI: `OPENAI_API_KEY`.
-- Ollama: `OLLAMA_BASE_URL` (optional), `OLLAMA_MODEL` (optional), `OLLAMA_NUM_CTX` or `CONTEXT` (optional).
+- Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`. Get a key: https://aistudio.google.com/app/apikey
+- OpenAI: `OPENAI_API_KEY`. Get a key: https://platform.openai.com/api-keys
+- Ollama: `OLLAMA_MODEL` (obligatory if using Ollama), `OLLAMA_NUM_CTX` or `CONTEXT` (optional), `OLLAMA_BASE_URL` (optional).
+
+### Ollama host expectation
+- By default, `OLLAMA_BASE_URL` points to `http://localhost:11434`, and `geollm` runs with host networking.
+- That means Ollama is expected to be running on the host unless you override `OLLAMA_BASE_URL` to another reachable endpoint.
+
+### Ollama host requirements (optional)
+- Required only if you want to run Ollama models.
+- Install Ollama on the host and ensure the daemon is running.
+- Installation guide: https://ollama.com/download
+- Download desired models (e.g., `gemma3:27b`) and edit `OLLAMA_MODEL` accordingly. Recommended update also `OLLAMA_NUM_CTX` to have the same context window as the model supports.
+- To verify installation, chat with the model from the host terminal:
+
+```bash
+ollama run gemma3:27b
+```
 
 ### Common issues
 - Missing API key -> `LLMConfigError` on startup.
