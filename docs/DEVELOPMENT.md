@@ -159,7 +159,7 @@ bash docs/uml/create_uml.sh
 Outputs are written to `docs/uml/*.puml`.
 For updating PNG/SVG exports, open the `.puml` files in VS Code and export them via the PlantUML extension.
 
-![UML class diagram](docs/uml/classes_llm_geoprocessing.svg)
+![UML class diagram](uml/classes_llm_geoprocessing.svg)
 
 
 ## 4) Runtime flows (end-to-end)
