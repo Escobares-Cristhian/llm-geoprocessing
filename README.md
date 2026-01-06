@@ -6,6 +6,8 @@ Outputs are written to a shared host folder and can be uploaded to PostGIS when 
 A Qt/X11 GUI mode is available for interactive use in supported environments.
 The Docker Compose stack includes three services: geollm (chat app), gee (GEE service), and postgis (optional).
 
+![UI screenshot](docs/Use_example_1.png)
+
 ## Key features
 
 - Interactive chat modes for geoprocessing and interpreter workflows
