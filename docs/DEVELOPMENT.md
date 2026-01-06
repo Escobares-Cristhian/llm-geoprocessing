@@ -81,8 +81,6 @@ rm -rf ./.data/postgis
 
 ![Architecture overview](architecture.png)
 
-(Components in UML incoming)
-
 This system routes every user message through a small orchestration layer and then runs one of two LLM-driven paths:
 
 - **Interpreter path**: produce a natural-language answer (no geoprocess execution).
@@ -144,6 +142,24 @@ The plugin system is split by responsibility and is the main source of “ground
 - **gee**: FastAPI microservice that runs Earth Engine operations and returns tiled GeoTIFF download URLs.
 - **postgis**: optional persistence for ChatDB artifacts and raster outputs (bind-mounted data in `./.data/postgis`).
   - Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
+
+### UML generation (optional)
+Use `docs/uml/create_uml.sh` to generate the PlantUML diagrams.
+
+Requirements:
+- `pylint` installed via apt (provides `pyreverse`).
+- VS Code PlantUML extension to visualize `.puml` files and export diagrams.
+
+Run from the repo root to generate/update UML diagrams:
+
+```bash
+bash docs/uml/create_uml.sh
+```
+
+Outputs are written to `docs/uml/*.puml`.
+For updating PNG/SVG exports, open the `.puml` files in VS Code and export them via the PlantUML extension.
+
+![UML class diagram](docs/uml/classes_llm_geoprocessing.svg)
 
 
 ## 4) Runtime flows (end-to-end)

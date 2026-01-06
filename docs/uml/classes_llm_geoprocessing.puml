@@ -1,0 +1,101 @@
+@startuml classes_llm_geoprocessing
+set namespaceSeparator none
+class "llm_geoprocessing.app.chatbot.chatbot.Chatbot" as llm_geoprocessing.app.chatbot.chatbot.Chatbot {
+  chat
+  chatdb : NoneType
+  mem
+  session_id : NoneType, UUID
+  chat_once(msg: Optional[str])
+  check_command(msg: str) -> Optional[str]
+  clone(instructions_to_add: Optional[str])
+  send_message(msg: str) -> str
+}
+class "llm_geoprocessing.app.chatdb.chatdb.ChatDB" as llm_geoprocessing.app.chatdb.chatdb.ChatDB {
+  enabled : bool
+  create_session(title: Optional[str], metadata: Optional[dict]) -> uuid.UUID
+  ensure_schema() -> None
+  finish_run(run_id: str | uuid.UUID, status: str, extra: Optional[dict]) -> None
+  insert_artifact(run_id: str | uuid.UUID, kind: str, uri: str, metadata: Optional[dict]) -> None
+  insert_log(record: dict) -> None
+  insert_message(session_id: str | uuid.UUID, role: str, content: str, metadata: Optional[dict], shown_to_user: Optional[bool]) -> None
+  start_run(session_id: Optional[str | uuid.UUID], params: Optional[dict]) -> uuid.UUID
+}
+class "llm_geoprocessing.app.chatdb.log_handler.ChatDBHandler" as llm_geoprocessing.app.chatdb.log_handler.ChatDBHandler {
+  chatdb
+  emit(record: logging.LogRecord) -> None
+}
+class "llm_geoprocessing.app.llm.LLM.ChatGPT" as llm_geoprocessing.app.llm.LLM.ChatGPT {
+  model : str
+  quiet : bool
+  temperature : float
+  timeout : float
+  config_api() -> None
+  send_msg(messages: Union[str, Message, Sequence[Message]]) -> str
+}
+class "llm_geoprocessing.app.llm.LLM.ChatMemory" as llm_geoprocessing.app.llm.LLM.ChatMemory {
+  user_name : str
+  add(role: str, content: str) -> None
+  add_assistant(content: str) -> None
+  add_system(content: str) -> None
+  add_user(content: str) -> None
+  as_string(model_name: Optional[str]) -> str
+  clear() -> None
+  delete(index: int) -> None
+  edit(index: int) -> None
+  insert(index: int, role: str, content: str) -> None
+  load_messages(messages: List[Message]) -> None
+  messages() -> List[Message]
+}
+class "llm_geoprocessing.app.llm.LLM.Gemini" as llm_geoprocessing.app.llm.LLM.Gemini {
+  model : str
+  quiet : bool
+  temperature : float
+  timeout : float
+  config_api() -> None
+  send_msg(messages: Union[str, Message, Sequence[Message]]) -> str
+}
+class "llm_geoprocessing.app.llm.LLM.LLM" as llm_geoprocessing.app.llm.LLM.LLM {
+  max_retries
+  model : Optional[str]
+  temperature : float
+  timeout : float
+  {abstract}config_api() -> None
+  config_local() -> None
+  {abstract}send_msg(messages: Union[str, Message, Sequence[Message]]) -> str
+  set_rate_limit(rpm: Optional[int]) -> None
+}
+class "<color:red>llm_geoprocessing.app.llm.LLM.LLMConfigError</color>" as llm_geoprocessing.app.llm.LLM.LLMConfigError {
+}
+class "<color:red>llm_geoprocessing.app.llm.LLM.LLMError</color>" as llm_geoprocessing.app.llm.LLM.LLMError {
+}
+class "llm_geoprocessing.app.llm.LLM.Ollama" as llm_geoprocessing.app.llm.LLM.Ollama {
+  base_url : str
+  model : NoneType
+  num_ctx : int
+  temperature : float
+  timeout : float
+  config_api() -> None
+  send_msg(messages: Union[str, Message, Sequence[Message]]) -> str
+}
+class "llm_geoprocessing.app.llm.LLM._SilenceStderrFD" as llm_geoprocessing.app.llm.LLM._SilenceStderrFD {
+}
+class "llm_geoprocessing.app.llm.geoprocess_agent.PluginInstructions" as llm_geoprocessing.app.llm.geoprocess_agent.PluginInstructions {
+}
+class "llm_geoprocessing.app.plugins.gee.logging_config.ChatDBHandler" as llm_geoprocessing.app.plugins.gee.logging_config.ChatDBHandler {
+  chatdb
+  emit(record: logging.LogRecord) -> None
+}
+class "llm_geoprocessing.app.plugins.gee.logging_config._ChatDB" as llm_geoprocessing.app.plugins.gee.logging_config._ChatDB {
+  enabled : bool
+  ensure_schema() -> None
+}
+llm_geoprocessing.app.llm.LLM.ChatGPT --|> llm_geoprocessing.app.llm.LLM.LLM
+llm_geoprocessing.app.llm.LLM.Gemini --|> llm_geoprocessing.app.llm.LLM.LLM
+llm_geoprocessing.app.llm.LLM.LLMConfigError --|> llm_geoprocessing.app.llm.LLM.LLMError
+llm_geoprocessing.app.llm.LLM.Ollama --|> llm_geoprocessing.app.llm.LLM.LLM
+llm_geoprocessing.app.chatdb.chatdb.ChatDB --* llm_geoprocessing.app.chatbot.chatbot.Chatbot : chatdb
+llm_geoprocessing.app.llm.LLM.ChatMemory --* llm_geoprocessing.app.chatbot.chatbot.Chatbot : mem
+llm_geoprocessing.app.llm.LLM.Gemini --* llm_geoprocessing.app.chatbot.chatbot.Chatbot : chat
+llm_geoprocessing.app.chatdb.chatdb.ChatDB --o llm_geoprocessing.app.chatdb.log_handler.ChatDBHandler : chatdb
+llm_geoprocessing.app.plugins.gee.logging_config._ChatDB --o llm_geoprocessing.app.plugins.gee.logging_config.ChatDBHandler : chatdb
+@enduml

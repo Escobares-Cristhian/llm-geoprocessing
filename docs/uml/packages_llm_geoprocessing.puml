@@ -1,0 +1,117 @@
+@startuml packages_llm_geoprocessing
+set namespaceSeparator none
+package "llm_geoprocessing" as llm_geoprocessing {
+}
+package "llm_geoprocessing.app" as llm_geoprocessing.app {
+}
+package "llm_geoprocessing.app.chatbot" as llm_geoprocessing.app.chatbot {
+}
+package "llm_geoprocessing.app.chatbot.chatbot" as llm_geoprocessing.app.chatbot.chatbot {
+}
+package "llm_geoprocessing.app.chatdb" as llm_geoprocessing.app.chatdb {
+}
+package "llm_geoprocessing.app.chatdb.chatdb" as llm_geoprocessing.app.chatdb.chatdb {
+}
+package "llm_geoprocessing.app.chatdb.context" as llm_geoprocessing.app.chatdb.context {
+}
+package "llm_geoprocessing.app.chatdb.log_handler" as llm_geoprocessing.app.chatdb.log_handler {
+}
+package "llm_geoprocessing.app.db" as llm_geoprocessing.app.db {
+}
+package "llm_geoprocessing.app.db.postgis_uploader" as llm_geoprocessing.app.db.postgis_uploader {
+}
+package "llm_geoprocessing.app.dev_tests" as llm_geoprocessing.app.dev_tests {
+}
+package "llm_geoprocessing.app.dev_tests.run_geoprocess_json" as llm_geoprocessing.app.dev_tests.run_geoprocess_json {
+}
+package "llm_geoprocessing.app.experiments" as llm_geoprocessing.app.experiments {
+}
+package "llm_geoprocessing.app.experiments.chat_only_llm" as llm_geoprocessing.app.experiments.chat_only_llm {
+}
+package "llm_geoprocessing.app.geoprocess" as llm_geoprocessing.app.geoprocess {
+}
+package "llm_geoprocessing.app.llm" as llm_geoprocessing.app.llm {
+}
+package "llm_geoprocessing.app.llm.LLM" as llm_geoprocessing.app.llm.LLM {
+}
+package "llm_geoprocessing.app.llm.geoprocess_agent" as llm_geoprocessing.app.llm.geoprocess_agent {
+}
+package "llm_geoprocessing.app.llm.interpreter_agent" as llm_geoprocessing.app.llm.interpreter_agent {
+}
+package "llm_geoprocessing.app.llm.mode_selector_agent" as llm_geoprocessing.app.llm.mode_selector_agent {
+}
+package "llm_geoprocessing.app.logging_config" as llm_geoprocessing.app.logging_config {
+}
+package "llm_geoprocessing.app.main" as llm_geoprocessing.app.main {
+}
+package "llm_geoprocessing.app.plugins" as llm_geoprocessing.app.plugins {
+}
+package "llm_geoprocessing.app.plugins.dummy" as llm_geoprocessing.app.plugins.dummy {
+}
+package "llm_geoprocessing.app.plugins.dummy.geoprocessing_plugin" as llm_geoprocessing.app.plugins.dummy.geoprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.dummy.preprocessing_plugin" as llm_geoprocessing.app.plugins.dummy.preprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.gee" as llm_geoprocessing.app.plugins.gee {
+}
+package "llm_geoprocessing.app.plugins.gee.gee_client" as llm_geoprocessing.app.plugins.gee.gee_client {
+}
+package "llm_geoprocessing.app.plugins.gee.gee_geoprocess" as llm_geoprocessing.app.plugins.gee.gee_geoprocess {
+}
+package "llm_geoprocessing.app.plugins.gee.geoprocessing_plugin" as llm_geoprocessing.app.plugins.gee.geoprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.gee.logging_config" as llm_geoprocessing.app.plugins.gee.logging_config {
+}
+package "llm_geoprocessing.app.plugins.gee.preprocessing_plugin" as llm_geoprocessing.app.plugins.gee.preprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.gee.runtime_executor" as llm_geoprocessing.app.plugins.gee.runtime_executor {
+}
+package "llm_geoprocessing.app.plugins.geoprocessing_plugin" as llm_geoprocessing.app.plugins.geoprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.preprocessing_plugin" as llm_geoprocessing.app.plugins.preprocessing_plugin {
+}
+package "llm_geoprocessing.app.plugins.runtime_executor" as llm_geoprocessing.app.plugins.runtime_executor {
+}
+llm_geoprocessing.app.chatbot.chatbot --> llm_geoprocessing.app.chatdb
+llm_geoprocessing.app.chatbot.chatbot --> llm_geoprocessing.app.chatdb.context
+llm_geoprocessing.app.chatbot.chatbot --> llm_geoprocessing.app.llm.LLM
+llm_geoprocessing.app.chatbot.chatbot --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.chatdb --> llm_geoprocessing.app.chatdb.chatdb
+llm_geoprocessing.app.chatdb.log_handler --> llm_geoprocessing.app.chatdb.chatdb
+llm_geoprocessing.app.chatdb.log_handler --> llm_geoprocessing.app.chatdb.context
+llm_geoprocessing.app.db.postgis_uploader --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.dev_tests.run_geoprocess_json --> llm_geoprocessing.app.llm.geoprocess_agent
+llm_geoprocessing.app.dev_tests.run_geoprocess_json --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.experiments.chat_only_llm --> llm_geoprocessing.app.llm.LLM
+llm_geoprocessing.app.llm.LLM --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.chatbot.chatbot
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.chatdb
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.chatdb.context
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.db.postgis_uploader
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.plugins.geoprocessing_plugin
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.plugins.preprocessing_plugin
+llm_geoprocessing.app.llm.geoprocess_agent --> llm_geoprocessing.app.plugins.runtime_executor
+llm_geoprocessing.app.llm.interpreter_agent --> llm_geoprocessing.app.chatbot.chatbot
+llm_geoprocessing.app.llm.interpreter_agent --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.llm.interpreter_agent --> llm_geoprocessing.app.plugins.geoprocessing_plugin
+llm_geoprocessing.app.llm.interpreter_agent --> llm_geoprocessing.app.plugins.preprocessing_plugin
+llm_geoprocessing.app.llm.mode_selector_agent --> llm_geoprocessing.app.chatbot.chatbot
+llm_geoprocessing.app.llm.mode_selector_agent --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.llm.mode_selector_agent --> llm_geoprocessing.app.plugins.geoprocessing_plugin
+llm_geoprocessing.app.llm.mode_selector_agent --> llm_geoprocessing.app.plugins.preprocessing_plugin
+llm_geoprocessing.app.logging_config --> llm_geoprocessing.app.chatdb
+llm_geoprocessing.app.logging_config --> llm_geoprocessing.app.chatdb.log_handler
+llm_geoprocessing.app.main --> llm_geoprocessing.app.chatbot.chatbot
+llm_geoprocessing.app.main --> llm_geoprocessing.app.llm.geoprocess_agent
+llm_geoprocessing.app.main --> llm_geoprocessing.app.llm.interpreter_agent
+llm_geoprocessing.app.main --> llm_geoprocessing.app.llm.mode_selector_agent
+llm_geoprocessing.app.main --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.plugins.dummy.geoprocessing_plugin --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.plugins.dummy.preprocessing_plugin --> llm_geoprocessing.app.logging_config
+llm_geoprocessing.app.plugins.gee.gee_geoprocess --> llm_geoprocessing.app.plugins.gee.logging_config
+llm_geoprocessing.app.plugins.geoprocessing_plugin --> llm_geoprocessing.app.plugins.gee.geoprocessing_plugin
+llm_geoprocessing.app.plugins.preprocessing_plugin --> llm_geoprocessing.app.plugins.gee.preprocessing_plugin
+llm_geoprocessing.app.plugins.runtime_executor --> llm_geoprocessing.app.plugins.gee.runtime_executor
+llm_geoprocessing.app.llm.LLM ..> llm_geoprocessing.app.chatdb
+@enduml
