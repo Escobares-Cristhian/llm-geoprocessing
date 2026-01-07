@@ -28,7 +28,7 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
     - Normalized difference index for a single date
     - Normalized difference index composites over a date range
   - Each one have the option to:
-    - Use defaults resolution (meters/pixel) and projection (CRS) or reproject to a target CRS and resolution.
+    - Use defaults resolution (meters/degree/number) and projection (CRS) or reproject to a target CRS and resolution.
     - Apply cloud masking (when supported by the product)
     - Request raw or scaled values via scale and offset
     - Specify bands (bands endpoints allow 1..N but RGB requires 3)
