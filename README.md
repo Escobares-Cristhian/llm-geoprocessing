@@ -155,7 +155,7 @@ The PostGIS is accessible at `localhost:5432` with the credentials in `.env` if 
 
 ## Known CRS issues and QGIS workaround
 
-- MODIS sinusoidal tiles may require a custom CRS in QGIS. Use:
+- MODIS sinusoidal tiles may require a custom CRS in QGIS. Use this as custom CRS (Format: Proj4):
 
 ```text
 +proj=sinu +lon_0=0 +x_0=0 +y_0=0 +R=6371007.181 +units=m +no_defs
