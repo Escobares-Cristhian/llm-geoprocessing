@@ -776,6 +776,43 @@ class Ollama(LLM):
 
         return self._with_retry(_call)
 
+# ---- Factory LLM: Select + configure model by .env variables ----------------
+
+class FactoryLLM:
+    """
+    Simple factory to create LLM instances based on environment variables.
+
+    Env vars:
+      - GEO_LLM_PROVIDER: "chatgpt", "gemini", or "ollama"
+      - GEO_LLM_MODEL: model name (optional)
+    Default config (mirrors chatbot defaults):
+      - Gemini: config_api(), rpm=250
+      - Ollama: config_api(timeout=300), rpm=10000
+      - ChatGPT: config_api(temperature=1.0), rpm=500
+    """
+
+    @staticmethod
+    def create_llm(**kwargs: Any) -> LLM:
+        provider = os.getenv("GEO_LLM_PROVIDER", "no_provider_selected").strip().lower()
+        model = os.getenv("GEO_LLM_MODEL")
+
+        if provider == "chatgpt":
+            llm = ChatGPT(model=model, **kwargs)
+            llm.config_api(temperature=1.0)
+            llm.set_rate_limit(500)
+        elif provider == "gemini":
+            llm = Gemini(model=model, **kwargs)
+            llm.config_api()
+            llm.set_rate_limit(250)
+        elif provider == "ollama":
+            llm = Ollama(model=model, **kwargs)
+            llm.config_api(timeout=300)
+            llm.set_rate_limit(10000)
+        else:
+            raise LLMConfigError(f"Unsupported GEO_LLM_PROVIDER: {provider}")
+
+        return llm
+
 # ---- Smoke test / CLI ------------------------------------------------------
 
 if __name__ == "__main__":

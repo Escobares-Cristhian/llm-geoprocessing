@@ -45,11 +45,6 @@ services:
       GEE_PLUGIN_URL: http://localhost:8000
       GEO_OUT_DIR: /gee_out
       DISPLAY: ${DISPLAY}
-      OMP_NUM_THREADS: 12
-      OLLAMA_NUM_GPU_LAYERS: 1
-      OLLAMA_MODEL: gemma3:12b-cloud
-      OLLAMA_BASE_URL: http://localhost:11434
-      OLLAMA_NUM_CTX: "32768"
       POSTGIS_ENABLED: "true"
       POSTGIS_HOST: "localhost"
       POSTGIS_PORT: "5432"

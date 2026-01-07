@@ -59,15 +59,19 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
 ## Quickstart (happy path)
 
 1) Copy `.env.example` to `.env`.
-2) Set at least one provider key in `.env`: `GEMINI_API_KEY` and/or `OPENAI_API_KEY`.
-3) Ensure `./secrets/gee-sa.json` exists (see `docs/DEVELOPMENT.md`).
+2) Set `GEO_LLM_PROVIDER` (`chatgpt`, `gemini`, or `ollama`) and optionally `GEO_LLM_MODEL`.
+3) Set the matching provider credentials in `.env`:
+   - Gemini: `GEMINI_API_KEY` (or `GOOGLE_API_KEY`)
+   - OpenAI: `OPENAI_API_KEY`
+   - Ollama: `OLLAMA_MODEL` (and `OLLAMA_BASE_URL` if not local)
+4) Optional: Ensure `./secrets/gee-sa.json` exists (see `docs/DEVELOPMENT.md`), for the GEE plugin to work.
 
 Generate it with the helper script if needed:
 
 ```bash
 bash secrets/create_gee-sa.sh
 ```
-4) Start the app:
+5) Start the app:
 
 ```bash
 docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main
@@ -121,16 +125,27 @@ docker compose -f docker/compose.dev.yaml down
 
 ### From file `.env` (Copy `.env.example` and edit as needed):
 
-- `GEMINI_API_KEY`: Gemini API key for LLM access (needed only if using Gemini). Get a key: https://aistudio.google.com/app/apikey
-- `OPENAI_API_KEY`: OpenAI API key for LLM access (needed only if using OpenAI). Get a key: https://platform.openai.com/api-keys
-- `POSTGIS_ENABLED`: Enable PostGIS upload when set to true. Default: true.
-- `POSTGIS_HOST`: PostGIS hostname. Default: localhost.
-- `POSTGIS_PORT`: PostGIS port. Default: 5432.
-- `POSTGIS_DB`: PostGIS database name. Default: geollm.
-- `POSTGIS_USER`: PostGIS user. Default: geollm.
-- `POSTGIS_PASSWORD`: PostGIS password. Default: geollm.
-- `POSTGIS_SCHEMA`: Target schema for uploads. Default: public.
-- `POSTGIS_TABLE_PREFIX`: Prefix for created tables. Default: gee_output_
+- Select LLM provider and model:
+  - `GEO_LLM_PROVIDER`: Select LLM provider (`chatgpt` for OpenAI, `gemini`, or `ollama`).
+  - `GEO_LLM_MODEL`: Optional model name for the selected provider.
+- API keys:
+  - `GEMINI_API_KEY`: Gemini API key for LLM access (needed only if using Gemini). Get a key: https://aistudio.google.com/app/apikey
+  - `OPENAI_API_KEY`: OpenAI API key for LLM access (needed only if using OpenAI). Get a key: https://platform.openai.com/api-keys
+- For Ollama:
+  - `OLLAMA_MODEL`: Ollama model name (required if using Ollama).
+  - `OLLAMA_BASE_URL`: Ollama API base URL. Default: `http://localhost:11434`.
+  - `OLLAMA_NUM_CTX`: Context window for Ollama requests (optional).
+  - `OMP_NUM_THREADS`: CPU threads for Ollama runtime (optional).
+  - `OLLAMA_NUM_GPU_LAYERS`: GPU offload layers for Ollama (optional).
+- For PostGIS:
+  - `POSTGIS_ENABLED`: Enable PostGIS upload when set to true. Default: true.
+  - `POSTGIS_HOST`: PostGIS hostname. Default: localhost.
+  - `POSTGIS_PORT`: PostGIS port. Default: 5432.
+  - `POSTGIS_DB`: PostGIS database name. Default: geollm.
+  - `POSTGIS_USER`: PostGIS user. Default: geollm.
+  - `POSTGIS_PASSWORD`: PostGIS password. Default: geollm.
+  - `POSTGIS_SCHEMA`: Target schema for uploads. Default: public.
+  - `POSTGIS_TABLE_PREFIX`: Prefix for created tables. Default: gee_output_
 
 ### From file `docker/compose.dev.yaml` (Defaults values can be changed here, but there is no need to edit it for basic use):
 

@@ -78,10 +78,7 @@ ENV PATH="/venv/bin:${PATH}" \
     LIBGL_ALWAYS_SOFTWARE=1 \
     MESA_LOADER_DRIVER_OVERRIDE=llvmpipe \
     QT_OPENGL=software \
-    OMP_NUM_THREADS=12 \
-    OLLAMA_NUM_GPU_LAYERS=1 \
-    OLLAMA_NUM_CTX=32768 \
-    OLLAMA_MODEL=gemma3:12b-cloud
+    OMP_NUM_THREADS=12
 
 # Project files
 COPY . /app

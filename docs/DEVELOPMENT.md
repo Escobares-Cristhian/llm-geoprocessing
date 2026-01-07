@@ -238,6 +238,10 @@ This section describes the **runtime sequence** that happens inside the componen
 
 ### From file `.env` (Copy `.env.example` and edit as needed):
 
+LLM provider selection (geollm):
+- `GEO_LLM_PROVIDER`: Purpose: choose provider (`chatgpt`, `gemini`, or `ollama`). Service: geollm. Default: (none). Example: `GEO_LLM_PROVIDER=gemini`.
+- `GEO_LLM_MODEL`: Purpose: explicit model name for the selected provider. Service: geollm. Default: (none). Example: `GEO_LLM_MODEL=gemini-3-flash-preview`.
+
 LLM provider keys (geollm):
 - `GEMINI_API_KEY`: Purpose: Gemini API auth. Service: geollm. Default: (none). Example: `GEMINI_API_KEY=...`.
 - `GOOGLE_API_KEY`: Purpose: fallback key for Gemini. Service: geollm. Default: (none). Example: `GOOGLE_API_KEY=...`.
@@ -268,9 +272,11 @@ Earth Engine service (gee):
 
 LLM runtime options (geollm):
 - `OLLAMA_BASE_URL`: Purpose: base URL for Ollama HTTP API. Service: geollm. Default: `http://localhost:11434`. Example: `OLLAMA_BASE_URL=http://localhost:11434`.
-- `OLLAMA_MODEL`: Purpose: model name to request from Ollama. Service: geollm. Default: `gemma3:1b-it-qat`. Example: `OLLAMA_MODEL=gemma3:12b-cloud`.
-- `OLLAMA_NUM_CTX`: Purpose: context window for Ollama requests (tokens). Service: geollm. Default: `8192`. Example: `OLLAMA_NUM_CTX=32768`.
+- `OLLAMA_MODEL`: Purpose: model name to request from Ollama. Service: geollm. Default: `gemma3:1b-it-qat`. Example: `OLLAMA_MODEL=gpt-oss:120b`.
+- `OLLAMA_NUM_CTX`: Purpose: context window for Ollama requests (tokens). Service: geollm. Default: `8192`. Example: `OLLAMA_NUM_CTX=131072`.
 - `CONTEXT`: Purpose: fallback for `OLLAMA_NUM_CTX` if that is unset. Service: geollm. Default: (unset). Example: `CONTEXT=8192`.
+- `OMP_NUM_THREADS`: Purpose: CPU threads for Ollama runtime. Service: geollm (host Ollama). Default: (unset). Example: `OMP_NUM_THREADS=12`.
+- `OLLAMA_NUM_GPU_LAYERS`: Purpose: GPU offload layers for Ollama runtime. Service: geollm (host Ollama). Default: (unset). Example: `OLLAMA_NUM_GPU_LAYERS=1`.
 - `GEOLLM_LOG_LEVEL`: Purpose: log level for geollm (INFO/DEBUG/etc.). Service: geollm. Default: `INFO`. Example: `GEOLLM_LOG_LEVEL=DEBUG`.
 
 GUI (geollm):
@@ -706,14 +712,15 @@ bash tests/gee_plugins_json_tests/run_json_test.sh
 ## 14) LLM providers (Gemini/OpenAI/Ollama)
 
 ### How selection works
-- The active provider is chosen in `src/llm_geoprocessing/app/chatbot/chatbot.py` by instantiating `Gemini`, `ChatGPT`, or `Ollama`.
-- Only one provider is active at a time; selection is not driven by env vars.
+- The active provider is selected by `FactoryLLM` using `GEO_LLM_PROVIDER` (and optional `GEO_LLM_MODEL`).
+- Allowed values are `chatgpt`, `gemini`, or `ollama` (only one provider is active at a time).
 
 ### Where to change it
-- Edit `Chatbot.__init__` in `src/llm_geoprocessing/app/chatbot/chatbot.py` to switch which class is used.
-- Call the provider's `config_api(...)` to set model and tuning.
+- Set `GEO_LLM_PROVIDER` and `GEO_LLM_MODEL` in `.env`.
+- If you need to alter defaults (rate limits or `config_api` arguments), edit `FactoryLLM` in `src/llm_geoprocessing/app/llm/LLM.py`.
 
 ### Required env vars per provider
+- Ensure `GEO_LLM_PROVIDER` matches the provider you configure below.
 - Gemini: `GEMINI_API_KEY` or `GOOGLE_API_KEY`. Get a key: https://aistudio.google.com/app/apikey
 - OpenAI: `OPENAI_API_KEY`. Get a key: https://platform.openai.com/api-keys
 - Ollama: `OLLAMA_MODEL` (obligatory if using Ollama), `OLLAMA_NUM_CTX` or `CONTEXT` (optional), `OLLAMA_BASE_URL` (optional).
