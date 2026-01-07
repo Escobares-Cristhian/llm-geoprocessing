@@ -30,9 +30,9 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
   - Each one have the option to:
     - Use defaults resolution (meters/pixel) and projection (CRS) or reproject to a target CRS and resolution.
     - Apply cloud masking (when supported by the product)
-    - Request raw or scaled values via scale/offset (bands/RGB endpoints)
-    - Specify bands (bands endpoints allow 1..N; RGB requires 3)
-    - Choose reducers for composites (mean/median/min/max/mosaic)
+    - Request raw or scaled values via scale and offset
+    - Specify bands (bands endpoints allow 1..N but RGB requires 3)
+    - Choose reducers for composites (mean/median/min/max/mosaic or equivalent in spanish)
     - Provide ND band pairs for index endpoints
     - Control maximum tiles to download with `max_tiles` parameter (need to tell to the LLM the specific parameter and value limits to use it properly, otherwise, it will use the default value).
 - Swap in other plugins to target different geospatial data/engines (customizable per business)
