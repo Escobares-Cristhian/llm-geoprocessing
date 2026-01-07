@@ -20,6 +20,21 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
 
 - Execute geoprocesses exposed by a plugin service (LLM-driven JSON contract)
 - Current plugin: GEE (early-stage, limited geoprocess catalog)
+  - It can calculate:
+    - Band exports for a single date
+    - Band composites over a date range
+    - RGB exports for a single date
+    - RGB composites over a date range
+    - Normalized difference index for a single date
+    - Normalized difference index composites over a date range
+  - Each one have the option to:
+    - Use defaults resolution (meters/pixel) and projection (CRS) or reproject to a target CRS and resolution.
+    - Apply cloud masking (when supported by the product)
+    - Request raw or scaled values via scale/offset (bands/RGB endpoints)
+    - Specify bands (bands endpoints allow 1..N; RGB requires 3)
+    - Choose reducers for composites (mean/median/min/max/mosaic)
+    - Provide ND band pairs for index endpoints
+    - Control maximum tiles to download with `max_tiles` parameter (need to tell to the LLM the specific parameter and value limits to use it properly, otherwise, it will use the default value).
 - Swap in other plugins to target different geospatial data/engines (customizable per business)
 - Orchestrate outputs (tiles -> merged GeoTIFF to `./gee_out`, optional PostGIS upload, or custom post-processing)
 - Read documentation and metadata from the plugin service to inform LLM decisions. Currently, it reads the whole documentation. Future versions may improve this with RAG techniques.
