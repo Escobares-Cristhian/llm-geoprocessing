@@ -143,9 +143,9 @@ The plugin system is split by responsibility and is the main source of “ground
 - **postgis**: optional persistence for ChatDB artifacts and raster outputs (bind-mounted data in `./.data/postgis`).
   - Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
 
-### UML component diagram
+### UML sequence diagram
 
-In progress... UML component diagram is being created manually.
+In progress... UML sequence diagram is being created manually.
 
 Due date: End of Jan 2026.
 
