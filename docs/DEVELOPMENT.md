@@ -143,8 +143,14 @@ The plugin system is split by responsibility and is the main source of “ground
 - **postgis**: optional persistence for ChatDB artifacts and raster outputs (bind-mounted data in `./.data/postgis`).
   - Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
 
-### UML generation (optional)
-Use `docs/uml/create_uml.sh` to generate the PlantUML diagrams.
+### UML component diagram
+
+In progress... UML component diagram is being created manually.
+
+Due date: End of Jan 2026.
+
+### UML generation of class and package diagrams (optional)
+Use `docs/uml/create_uml.sh` to generate the PlantUML diagrams (class and package diagrams only).
 
 Requirements:
 - `pylint` installed via apt (provides `pyreverse`).
@@ -158,9 +164,6 @@ bash docs/uml/create_uml.sh
 
 Outputs are written to `docs/uml/*.puml`.
 For updating PNG/SVG exports, open the `.puml` files in VS Code and export them via the PlantUML extension.
-
-UML component diagram:
-In progress... Due date: End of Jan 2026.
 
 UML class diagram:
 ![UML class diagram](uml/classes_llm_geoprocessing.svg)
