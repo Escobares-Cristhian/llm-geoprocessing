@@ -159,8 +159,12 @@ bash docs/uml/create_uml.sh
 Outputs are written to `docs/uml/*.puml`.
 For updating PNG/SVG exports, open the `.puml` files in VS Code and export them via the PlantUML extension.
 
+UML component diagram:
+In progress... Due date: End of Jan 2026.
+
 UML class diagram:
 ![UML class diagram](uml/classes_llm_geoprocessing.svg)
+Warning: Not all code elements are represented because not all the code is in classes.
 
 UML packages diagram:
 ![UML packages diagram](uml/packages_llm_geoprocessing.svg)
