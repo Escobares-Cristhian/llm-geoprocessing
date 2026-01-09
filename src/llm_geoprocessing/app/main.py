@@ -21,7 +21,6 @@ def get_user_input(chatbot: Chatbot) -> str | None:
         elif command == "ask for input":
             continue  # ask again
         elif command:
-            chat_io.print_command_msg("command_name not implemented yet", command)
             continue
 
         valid_user_msg = True
