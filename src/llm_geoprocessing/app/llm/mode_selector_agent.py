@@ -1,4 +1,4 @@
-from typing import Optional
+from typing import Optional, Tuple
 from llm_geoprocessing.app.chatbot.chatbot import Chatbot
 from llm_geoprocessing.app.plugins.preprocessing_plugin import get_metadata_preprocessing, get_documentation_preprocessing
 from llm_geoprocessing.app.plugins.geoprocessing_plugin import get_metadata_geoprocessing, get_documentation_geoprocessing
@@ -63,6 +63,19 @@ def prepare_mode_prompt(modes: list, modes_explained: Optional[dict]=None) -> st
 
 
 def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Optional[dict]=None) -> str:
+    def _match_mode(response: str, available_modes: list) -> Tuple[Optional[str], int]:
+        count = 0
+        selected_mode: Optional[str] = None
+        for mode in available_modes:
+            if mode.lower() == response.lower():
+                return mode, 1
+            if mode.lower() in response.lower():
+                count += 1
+                selected_mode = mode
+        if count == 1 and selected_mode is not None:
+            return selected_mode, count
+        return None, count
+
     # Clone chatbot to avoid modifying the original
     chat = chatbot.clone(instructions_to_add=None)
     
@@ -72,31 +85,36 @@ def define_mode(chatbot: Chatbot, msg: str, modes: list, modes_explained: Option
         return "exit"
 
     # Prepare the mode selection prompt
-    prompt = prepare_mode_prompt(modes, modes_explained)
+    base_prompt = prepare_mode_prompt(modes, modes_explained)
     # Add user message to the prompt
-    prompt += f"\n\nUser Input: {msg}\n\nSelected Mode:"
+    prompt = f"{base_prompt}\n\nUser Input: {msg}\n\nSelected Mode:"
     
     # --- Select mode
     # Ask for the mode once
-    response = chat.chat_once(prompt)
+    response = chat.chat_once(prompt).strip()
+    selected_mode, count = _match_mode(response, modes)
+    if selected_mode is not None:
+        return selected_mode
 
-    # Check if the response matches one of the modes
-    if response in modes:
-        return response
+    reason = "it did not match any allowed mode"
+    if count > 1:
+        reason = "it mentions multiple modes"
 
-    # Check if only one mode is present in the response
-    count = 0
-    selected_mode: Optional[str] = None
-    for mode in modes:
-        if mode in response:
-            count += 1
-            selected_mode = mode
-
-    if count == 1 and selected_mode is not None:
+    retry_prompt = (
+        f"{base_prompt}\n\n"
+        f"User Input: {msg}\n\n"
+        f"Your previous response was invalid because {reason}.\n"
+        f"Previous response: {response}\n"
+        "Please try again and respond with only one exact mode name.\n\n"
+        "Selected Mode:"
+    )
+    retry_response = chat.chat_once(retry_prompt).strip()
+    selected_mode, _ = _match_mode(retry_response, modes)
+    if selected_mode is not None:
         return selected_mode
     
     # If no valid mode is selected, raise an error
-    print( f"Mode selection failed. Response: {response}" )
+    print(f"Mode selection failed. First response: {response}. Retry response: {retry_response}")
     raise ValueError("No valid mode selected.")
 
 
