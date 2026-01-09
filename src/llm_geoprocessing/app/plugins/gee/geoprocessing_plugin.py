@@ -64,6 +64,8 @@ def get_documentation_geoprocessing() -> str:
         "- bands_single: export 1–N raw bands (or all bands) for a single date over an area.\n"
         "- bands_composite: export 1–N raw bands (or all bands) from multi-date composites for an area.\n"
         "\n General notes:"
-        "- none of the geoprocess uses the key 'other_params'. Leave it empty like other_params={}.\n"
+        "- None of the geoprocess uses the key 'other_params'. Leave it empty like other_params={}.\n"
+        "- If you specify a resolution, you must also specify a projection that matches the resolution units.\n"
+        "- If you specify a projection, you must also specify a resolution that matches the projection units.\n"
         "---------- END of DOCUMENTATION of GEOPROCESSING ----------\n"
     )
