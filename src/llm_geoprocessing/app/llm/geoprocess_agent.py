@@ -278,7 +278,7 @@ Return ONLY the sections described in OUTPUT: 'Requested products', 'Requested a
             elif command == "ask for input":
                 continue  # ask again
             elif command:
-                chat_io.print_command_msg("command_name not implemented yet", command)
+                chat_io.print_command_msg("Executed", command)
                 continue
             
             valid_user_answer = True
