@@ -144,12 +144,11 @@ The plugin system is split by responsibility and is the main source of “ground
   - Outputs are written to `./gee_out` on the host (mounted as `/gee_out` in the geollm container).
 
 ### UML sequence diagram
+The UML sequence diagram below summarizes the end-to-end flow described above but with the actual implementation components (classes, modules, and services), and was generated with PlantUML from `docs/uml/UML_sequence_diagram.puml`.
 
-In progress... UML sequence diagram is being created manually.
+![UML sequence diagram](uml/UML_sequence_diagram.svg)
 
-Due date: End of Jan 2026.
-
-### UML generation of class and package diagrams (optional)
+#### UML generation of class and package diagrams (optional)
 Use `docs/uml/create_uml.sh` to generate the PlantUML diagrams (class and package diagrams only).
 
 Requirements:
