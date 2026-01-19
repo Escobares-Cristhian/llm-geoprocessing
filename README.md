@@ -183,6 +183,16 @@ The PostGIS is accessible at `localhost:5432` with the credentials in `.env` if 
 The GEE plugin is the default implementation, intentionally generic, and designed to be swapped into other implementations; see `docs/DEVELOPMENT.md`.
 Architecture, JSON contract, plugin API details, testing, and extending geoprocesses are documented in `docs/DEVELOPMENT.md`.
 
+### UML sequence diagram
+The UML sequence diagram below summarizes the end-to-end flow described above but with the actual implementation components (classes, modules, and services), and was generated with PlantUML from `docs/uml/UML_sequence_diagram.puml`.
+
+Future TIP: Each time I call a "summary", in the feature they can be the implementation of RAG (Retrieval-Augmented Generation) where the LLM can access a vector DB and retrieve relevant parts of the documents to improve the answers. Also, is possible to implement RAG in each call for "preprocessing plugin" and "geoprocessing plugin" to retrieve relevant metadata and geoprocess documentation.
+
+UML sequence diagram svg:
+![UML sequence diagram](docs/uml/UML_sequence_diagram.svg)
+
+For more details, see `docs/DEVELOPMENT.md`.
+
 ## License
 
 See `LICENSE.txt`.
