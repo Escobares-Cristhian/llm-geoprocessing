@@ -32,12 +32,33 @@ def _init_ee() -> None:
 # --- Helpers (small, focused) ---
 def _parse_bbox(bbox_str: str) -> ee.Geometry:
     try:
-        xmin, ymin, xmax, ymax = [float(x) for x in bbox_str.split(",")]
-    except Exception:
-        raise HTTPException(status_code=400, detail="Invalid bbox. Expected 'xmin,ymin,xmax,ymax'.")
-    if not (xmin < xmax and ymin < ymax):
-        raise HTTPException(status_code=400, detail="Invalid bbox coordinates.")
-    return ee.Geometry.Rectangle([xmin, ymin, xmax, ymax], proj=None, geodesic=False)
+        # 1. Parse floats
+        parts = [float(x) for x in bbox_str.split(",")]
+        if len(parts) != 4:
+            raise ValueError
+        xmin, ymin, xmax, ymax = parts
+    except ValueError:
+        raise HTTPException(status_code=400, detail=f"Invalid bbox format. Expected 'xmin,ymin,xmax,ymax'. Got: '{bbox_str}'")
+
+    # 2. logical validation
+    if xmin >= xmax or ymin >= ymax:
+        raise HTTPException(status_code=400, detail=f"Invalid bbox dimensions: min must be strictly less than max. Expected 'xmin,ymin,xmax,ymax'. Got: '{bbox_str}'")
+
+    # 3. Sanity check for Lat/Lon vs Meters
+    # If coordinates are > 180, the user likely passed Web Mercator (meters), 
+    # which causes the "Empty" error because the box is off the WGS84 map.
+    if abs(xmin) > 360 or abs(ymin) > 180: # loose bounds to catch meter-coordinates
+        raise HTTPException(
+            status_code=400, 
+            detail="Coordinates appear to be in Meters instead of Degrees (Lat/Lon). ). Please provide Lat/Lon (WGS84) decimal degrees."
+        )
+
+    # 4. Return geometry
+    return ee.Geometry.Rectangle(
+        [xmin, ymin, xmax, ymax], 
+        proj='EPSG:4326', 
+        geodesic=False
+    )
 
 def _bbox_vals(bbox_str: str) -> tuple[float, float, float, float]:
     xmin, ymin, xmax, ymax = [float(x) for x in bbox_str.split(",")]
@@ -205,7 +226,11 @@ def _align_to_grid(minx: float, miny: float, maxx: float, maxy: float, scale: fl
 
 def _tile_rects(crs: str, region: ee.Geometry, scale: float, tile_size: int):
     """Return (tiles, meta) where tiles is a list of ee.Geometry rectangles (proj=crs)."""
+    
+    # 1. Calculate the bounding box in the target CRS
     minx, miny, maxx, maxy = _projected_bbox(region, crs)
+    
+    # 2. Align grid to standard origin to ensure consistent tiling
     origin_x, origin_y, gx0, gy0, gx1, gy1 = _align_to_grid(minx, miny, maxx, maxy, scale)
 
     tile_w = tile_size * scale
@@ -215,7 +240,10 @@ def _tile_rects(crs: str, region: ee.Geometry, scale: float, tile_size: int):
     rows = max(int(math.ceil((gy1 - gy0) / tile_h)), 1)
 
     tiles = []
-    region_proj = region.transform(crs, 1)
+    
+    # REMOVED: region_proj = region.transform(crs, 1) 
+    # We don't need the complex polygon anymore, the bbox grid is sufficient.
+
     grid_meta = {
         "crs": crs,
         "crs_transform": [scale, 0, origin_x, 0, -scale, origin_y],
@@ -234,10 +262,22 @@ def _tile_rects(crs: str, region: ee.Geometry, scale: float, tile_size: int):
         for c in range(cols):
             x_left = origin_x + c * tile_w
             x_right = x_left + tile_w
+            
+            # Create the exact tile geometry
             rect = ee.Geometry.Rectangle([x_left, y_bot, x_right, y_top], proj=crs, geodesic=False)
-            # clip to the projected region to avoid overfetch
-            tile_geom = rect.intersection(region_proj, 1)
-            tiles.append({"r": r, "c": c, "geom": tile_geom, "bbox_crs": [x_left, y_bot, x_right, y_top]})
+            
+            # --- CRITICAL FIX ---
+            # Do NOT use rect.intersection(region_proj).
+            # It causes "Empty Geometry" errors on edge tiles due to precision.
+            # Passing the full 'rect' is safe; pixels outside the user's ROI 
+            # will simply be transparent/masked in the download.
+            
+            tiles.append({
+                "r": r, 
+                "c": c, 
+                "geom": rect, # Use the full rectangle
+                "bbox_crs": [x_left, y_bot, x_right, y_top]
+            })
 
     return tiles, grid_meta
 
@@ -554,7 +594,7 @@ def bands_single(
     date: str = Query(..., description="YYYY-MM-DD"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    tile_size: int = Query(1024, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_scale_offset: bool = Query(False),
     apply_cloud_mask: bool = Query(False),
@@ -630,7 +670,7 @@ def bands_composite(
     reducer: str = Query("mean"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    tile_size: int = Query(1024, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_scale_offset: bool = Query(False),
     apply_cloud_mask: bool = Query(False),
@@ -707,7 +747,7 @@ def rgb_single(
     date: str    = Query(..., description="YYYY-MM-DD"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    tile_size: int = Query(1024, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_cloud_mask: bool = Query(False),
     apply_scale_offset: bool = Query(False),
@@ -765,7 +805,7 @@ def rgb_composite(
     reducer: str = Query("mean"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(1360, description="tile size in pixels (edge)"),
+    tile_size: int = Query(1024, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_cloud_mask: bool = Query(False),
     apply_scale_offset: bool = Query(False),
@@ -831,7 +871,7 @@ def index_single(
     palette: str = Query("", description="Comma colors (ignored for GeoTIFF data)"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
+    tile_size: int = Query(2048, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_cloud_mask: bool = Query(False)
 ):
@@ -880,7 +920,7 @@ def index_composite(
     reducer: str = Query("mean"),
     resolution: str = Query("default"),
     projection: str = Query("default"),
-    tile_size: int = Query(2400, description="tile size in pixels (edge)"),
+    tile_size: int = Query(2048, description="tile size in pixels (edge)"),
     max_tiles: int = Query(25, description="safety cap on total tiles"),
     apply_cloud_mask: bool = Query(False)
 ):

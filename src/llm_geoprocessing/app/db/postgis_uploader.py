@@ -4,6 +4,7 @@ import os
 import re
 import shutil
 import subprocess
+import tempfile
 import unicodedata
 from datetime import datetime, timezone
 from pathlib import Path
@@ -43,6 +44,7 @@ def _safe_table_name(base: str) -> str:
 def upload_raster_to_postgis(
     raster_path: Path | str,
     output_id: Optional[str] = None,
+    tile_size: str = "512x512",          # try 256x256 if you still hit issues
 ) -> Optional[str]:
     if not is_postgis_enabled():
         return None
@@ -59,30 +61,38 @@ def upload_raster_to_postgis(
     env = os.environ.copy()
     env.update(_pg_env_from_settings())
 
-    # Ensure extensions exist
-    subprocess.run(
-        ["psql", "-c", "CREATE EXTENSION IF NOT EXISTS postgis; CREATE EXTENSION IF NOT EXISTS postgis_raster;"],
-        env=env,
-        check=False,
-    )
-
     schema = os.getenv("POSTGIS_SCHEMA", "public")
     prefix = os.getenv("POSTGIS_TABLE_PREFIX", "gee_output_")
 
-    # Table name
     base_name = output_id or raster_path.stem
     safe_base = _safe_table_name(base_name)
     ts = datetime.now(timezone.utc).strftime("%Y%m%d_%H%M%S")
     table_name = f"{prefix}{safe_base}_{ts}"
     full_table = f"{schema}.{table_name}" if schema else table_name
 
-    # Build raster2pgsql command (no SRID override)
-    cmd = ["raster2pgsql", "-I", "-C", "-M", str(raster_path), full_table]
+    # Make sure schema + extensions exist (and fail loudly if not)
+    bootstrap_sql = f"""
+    CREATE SCHEMA IF NOT EXISTS {schema};
+    CREATE EXTENSION IF NOT EXISTS postgis;
+    CREATE EXTENSION IF NOT EXISTS postgis_raster;
+    """
+    subprocess.run(
+        ["psql", "-v", "ON_ERROR_STOP=1", "-X", "-c", bootstrap_sql],
+        env=env,
+        check=True,
+        text=True,
+    )
 
-    logger.info("Uploading %s -> %s", raster_path.name, full_table)
+    # raster2pgsql with tiling + COPY
+    cmd = ["raster2pgsql", "-I", "-C", "-M", "-Y", "-t", tile_size, str(raster_path), full_table]
 
-    # Execute: raster2pgsql | psql
-    p1 = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=subprocess.PIPE, env=env, text=True)
+    logger.info("Uploading %s -> %s (tile=%s)", raster_path.name, full_table, tile_size)
+
+    # Capture raster2pgsql stderr to a temp file to avoid deadlocks
+    with tempfile.NamedTemporaryFile(mode="w+", suffix=".raster2pgsql.log", delete=False) as logf:
+        log_path = logf.name
+        p1 = subprocess.Popen(cmd, stdout=subprocess.PIPE, stderr=logf, env=env, text=True)
+
     p2 = subprocess.Popen(
         ["psql", "-v", "ON_ERROR_STOP=1", "-X"],
         stdin=p1.stdout,
@@ -91,11 +101,17 @@ def upload_raster_to_postgis(
         env=env,
         text=True,
     )
-    p1.stdout.close()
-    _, err = p2.communicate()
 
-    if p2.returncode != 0:
-        logger.error("PostGIS upload failed: %s", err)
+    assert p1.stdout is not None
+    p1.stdout.close()
+    out2, err2 = p2.communicate()
+    p1.wait()
+
+    with open(log_path, "r", encoding="utf-8", errors="replace") as f:
+        err1 = f.read()
+
+    if p2.returncode != 0 or p1.returncode != 0:
+        logger.error("PostGIS upload failed.\npsql stderr:\n%s\nraster2pgsql stderr:\n%s", err2, err1)
         return None
 
     return full_table
