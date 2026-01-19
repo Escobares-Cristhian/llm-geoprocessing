@@ -9,7 +9,7 @@ skinparam maxMessageSize 140
 skinparam participantPadding 18
 skinparam boxPadding 10
 autonumber
-autoactivate on
+' autoactivate on
 
 actor User
 
@@ -36,77 +36,129 @@ box "External Services"
 end box
 
 box "Storage (optional)" #CCE5FF
-  database "ChatDB\n(PostGIS schema)" as ChatDB
-  database "PostGIS Raster\nuploads" as PostGIS
+  box "PostGIS" #abd3ff
+    database "ChatDB\n(PostGIS schema \nor Python class)" as ChatDB
+    database "PostGIS Raster\nuploads" as PostGIS
+  end box
   entity "GeoTIFF Output\n(GEO_OUT_DIR)" as GeoOut
 end box
 
 == Startup ==
+activate User
 Main -> Chatbot: initialize()\nFactoryLLM.create_llm()\nChatMemory + ChatDB session
+activate Chatbot
 Chatbot -> ChatDB: ensure_schema()/create_session\n(if enabled)
+activate ChatDB
+activate PostGIS
 note right of Main
   Typical launch:
   docker compose -f docker/compose.dev.yaml run geollm \
   python -m llm_geoprocessing.app.main
 end note
 
+loop until user closes session
 == Input + Mode Selection ==
+loop until selected mode is geoprocessing or interpreter
 User -> ChatIO: enter message
+activate ChatIO
 ChatIO -> Main: msg
+activate Main
 Main -> Chatbot: check_command(msg)
 Main -> Chatbot: mem.add_user(msg)
 Chatbot -> ChatDB: insert_message("user")\n(if enabled)
-
 Main -> ModeSelector: define_mode_interaction(msg)
-ModeSelector -> Preproc: get_metadata/get_documentation
-ModeSelector -> GeoPlugin: get_metadata/get_documentation
-ModeSelector -> Chatbot: clone() + build prompt
-Chatbot -> LLM: chat_once(prompt)
-LLM --> Chatbot: selected mode
-Chatbot --> ModeSelector: selected mode
+activate ModeSelector
 
-alt "Consulta de Capacidades"
+ModeSelector -> Preproc: get_metadata/get_documentation
+activate Preproc
+Preproc --> ModeSelector: metadata/docs
+deactivate Preproc
+
+ModeSelector -> GeoPlugin: get_metadata/get_documentation
+activate GeoPlugin
+GeoPlugin --> ModeSelector: metadata/docs
+deactivate GeoPlugin
+
+ModeSelector -> Chatbot: clone() + build prompt
+activate Chatbot
+Chatbot -> LLM: chat_once(prompt)
+activate LLM
+LLM --> Chatbot: selected mode
+deactivate LLM
+Chatbot --> ModeSelector: selected mode
+deactivate Chatbot
+
+alt Capabilities query mode selected: "Consulta de Capacidades"
   ModeSelector -> Chatbot: clone().send_message(summary prompt)
+  activate Chatbot
   Chatbot -> LLM: summarize capabilities
+  activate LLM
   LLM --> Chatbot: summary
+  deactivate LLM
   Chatbot -> ChatIO: print_assistant_msg(summary)
-  ModeSelector --> Main: "ask for input"
+  deactivate Chatbot
+  ChatIO --> User: summary to user
+  ModeSelector --> Main: "Wait for user input"
   Main -> ChatIO: ask_user_input()
 end
-ModeSelector --> Main: geoprocessing or interpreter
+end
+ModeSelector --> Main: selected mode (geoprocessing or interpreter)
+deactivate ModeSelector
 Main -> ChatIO: print_mode_selected()
+ChatIO --> User: show selected mode
 
 == Execution ==
-alt Geoprocessing selected
+alt Geoprocessing mode selected: "geoprocessing"
   Main -> GeoAgent: main(chatbot, chat_io, msg)
+  activate GeoAgent
   GeoAgent -> Preproc: get_metadata/get_documentation
+  activate Preproc
+  Preproc --> GeoAgent: metadata/docs
+  deactivate Preproc
   GeoAgent -> GeoPlugin: get_metadata/get_documentation
+  activate GeoPlugin
+  GeoPlugin --> GeoAgent: metadata/docs
+  deactivate GeoPlugin
   GeoAgent -> Chatbot: clone() + build JSON prompt
+  activate Chatbot
   Chatbot -> LLM: send_message(schema prompt)
+  activate LLM
   LLM --> Chatbot: JSON wrapper
+  deactivate LLM
 
   loop until complete or max turns
     GeoAgent -> ChatIO: print_assistant_msg(questions)
+    ChatIO --> User: questions to user
     User -> ChatIO: answers
     ChatIO -> GeoAgent: user_answer
     GeoAgent -> Chatbot: mem.add_user(answer)
     Chatbot -> LLM: send_message(update prompt)
+    activate LLM
     LLM --> Chatbot: updated JSON wrapper
+    deactivate LLM
   end
-
+  
   GeoAgent -> GeoAgent: validate/fix JSON\n(check_and_fix_json)
   GeoAgent -> Chatbot: mem.add_assistant("Generated JSON ...")
   Chatbot -> ChatDB: insert_message("assistant")\n(if enabled)
+  deactivate Chatbot
 
   GeoAgent -> ChatDB: start_run(params)\n(if enabled)
   loop for each action
     GeoAgent -> Executor: execute_action(name, params)
+    activate Executor
     Executor -> GEE: GET /tif/{geoprocess}\nquery params
+    activate GEE
     GEE -> EE: run Earth Engine operation
+    activate EE
     EE --> GEE: tile URLs
+    deactivate EE
     GEE --> Executor: JSON output_urls
+    deactivate GEE
     Executor --> GeoAgent: output_urls
+    deactivate Executor
     GeoAgent -> GeoOut: download tiles + merge\n(GDAL)
+    activate GeoOut
     GeoAgent -> ChatDB: insert_artifact(merged file)\n(if enabled)
     opt POSTGIS_ENABLED
       GeoAgent -> PostGIS: raster2pgsql | psql
@@ -114,22 +166,39 @@ alt Geoprocessing selected
     end
   end
   GeoAgent -> ChatDB: finish_run(status)\n(if enabled)
-  GeoAgent --> Main: geoprocess summary
+  GeoAgent ->> Main: geoprocess summary
+  deactivate GeoAgent
 
-  Main -> Interpreter: main(chatbot, chat_io,\nsummary, original msg)
-else Interpreter-only selected
-  Main -> Interpreter: main(chatbot, chat_io,\nNone, original msg)
+  note right of Main: msg_to_interpreter = summary
+else Interpreter-only mode selected: "interpreter"
+  note right of Main: msg_to_interpreter = None
 end
 
-Interpreter -> Chatbot: clone() + build response prompt
+Main -> Interpreter: main(chatbot, chat_io,\nmsg_to_interpreter, original msg)
+activate Interpreter
 opt geoprocess summary present
   Interpreter -> Preproc: get_metadata/get_documentation
+  activate Preproc
+  Preproc --> Interpreter: metadata/docs
+  deactivate Preproc
   Interpreter -> GeoPlugin: get_metadata/get_documentation
+  activate GeoPlugin
+  GeoPlugin --> Interpreter: metadata/docs
+  deactivate GeoPlugin
 end
+Interpreter -> Chatbot: clone() + build response prompt
+activate Chatbot
 Chatbot -> LLM: send_message(prompt)
+activate LLM
 LLM --> Chatbot: natural language response
-Interpreter -> ChatIO: print_assistant_msg(response)
+deactivate LLM
 Interpreter -> Chatbot: mem.add_assistant(response)
 Chatbot -> ChatDB: insert_message("assistant")\n(if enabled)
+deactivate Chatbot
+Interpreter -> ChatIO: print_assistant_msg(response)
+deactivate Interpreter
+ChatIO --> User: response to user
+
+end loop
 
 @enduml

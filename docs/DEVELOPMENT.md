@@ -146,6 +146,8 @@ The plugin system is split by responsibility and is the main source of “ground
 ### UML sequence diagram
 The UML sequence diagram below summarizes the end-to-end flow described above but with the actual implementation components (classes, modules, and services), and was generated with PlantUML from `docs/uml/UML_sequence_diagram.puml`.
 
+Future TIP: Each time I call a "summary", in the feature they can be the implementation of RAG (Retrieval-Augmented Generation) where the LLM can access a vector DB and retrieve relevant parts of the documents to improve the answers. Also, is possible to implement RAG in each call for "preprocessing plugin" and "geoprocessing plugin" to retrieve relevant metadata and geoprocess documentation.
+
 ![UML sequence diagram](uml/UML_sequence_diagram.svg)
 
 #### UML generation of class and package diagrams (optional)
