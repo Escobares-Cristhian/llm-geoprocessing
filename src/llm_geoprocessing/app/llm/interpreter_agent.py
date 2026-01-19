@@ -54,6 +54,7 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg_from_geoprocess: Optional[str], 
         "\nBased on the above information, please provide a suitable response to the user's message.\n"
         " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode.\n"
         " If the geoprocessing return a error, then explain to the user what happened with the technical details, and later suggest possible solutions or alternatives.\n"
+        " Do not be so verbose unless specifically asked by the user. Make short and to-the-point answers.\n"
         " Respond in the same language as the user's message."
     )
     
