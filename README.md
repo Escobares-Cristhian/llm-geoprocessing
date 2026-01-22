@@ -74,7 +74,7 @@ bash secrets/create_gee-sa.sh
 5) Start the app:
 
 ```bash
-docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main
+make run
 ```
 
 If the services are started, the GEE FastAPI docs are at http://localhost:8000/docs.
@@ -107,6 +107,13 @@ Start supporting services (gee + postgis) in background:
 
 ```bash
 docker compose -f docker/compose.dev.yaml up -d gee postgis
+```
+
+Start the app  with docker compose:
+
+```bash
+xhost +local: # Only if using GUI with X11
+docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main
 ```
 
 Tail gee logs:

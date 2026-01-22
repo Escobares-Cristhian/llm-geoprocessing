@@ -37,11 +37,13 @@ docker compose -f docker/compose.dev.yaml up -d gee postgis
 ```
 
 ### Run main app
-Run the interactive app container (CLI or GUI depending on ChatIO config).
+Run the interactive app container (CLI or GUI depending on ChatIO config, default is GUI).
 
 ```bash
-docker compose -f docker/compose.dev.yaml run --rm --build geollm python -m llm_geoprocessing.app.main
+make run
 ```
+
+Note: `make run` invokes `xhost +local:` for GUI/X11. If you're running headless, use `make run X11=` to skip it.
 
 ### Stop stack
 Stop and remove containers.
@@ -657,8 +659,16 @@ docker compose -f docker/compose.dev.yaml run --rm geollm \
 
 ### Log levels
 - geollm log level is controlled by `GEOLLM_LOG_LEVEL` (INFO/DEBUG/etc.).
+- When using `make run`, set `log_level` to pass `GEOLLM_LOG_LEVEL`.
 
 ```bash
+make run log_level=DEBUG
+```
+
+Docker compose equivalent:
+
+```bash
+xhost +local: # Only if using GUI with X11
 docker compose -f docker/compose.dev.yaml run --rm --build \
   --env GEOLLM_LOG_LEVEL=DEBUG geollm \
   python -m llm_geoprocessing.app.main
