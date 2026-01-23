@@ -206,6 +206,15 @@ def _apply_cloud_mask_by_product(img: ee.Image, product: str) -> ee.Image:
         return img
 
 # ---------- Tiling helpers (client-side, fixed grid) ----------
+def _region_in_crs(region: ee.Geometry, crs: str, scale: float) -> ee.Geometry:
+    # max_error for transform (1000 pixel), only used to avoid precision issues
+    max_error = abs(float(scale)) * 1000.0
+
+    try:
+        return ee.Geometry(region).transform(crs, max_error)
+    except Exception:
+        raise HTTPException(status_code=400, detail="Could not transform region to the target CRS.")
+
 def _projected_bbox(region: ee.Geometry, crs: str) -> tuple[float, float, float, float]:
     # Bounds in target CRS (server-side transform, client fetch min/max)
     bounds = ee.Geometry(region).transform(crs, 1).bounds(1, crs)
@@ -637,10 +646,12 @@ def bands_single(
         resolution=resolution,
         log_tag="bands_single",
     )
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
     logger.debug(f"[bands_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(
@@ -648,6 +659,7 @@ def bands_single(
             detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}",
         )
 
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
@@ -719,10 +731,11 @@ def bands_composite(
         log_tag="bands_composite",
     )
 
-    logger.debug(f"[bands_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    logger.debug(f"[bands_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(
@@ -730,6 +743,7 @@ def bands_composite(
             detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}",
         )
 
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
@@ -780,14 +794,17 @@ def rgb_single(
         resolution=resolution,
         log_tag="rgb_single",
     )
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
     logger.debug(f"[rgb_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
@@ -844,15 +861,17 @@ def rgb_composite(
         log_tag="rgb_composite",
     )
 
-    logger.debug(f"[rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    logger.debug(f"[rgb_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
@@ -894,14 +913,17 @@ def index_single(
         resolution=resolution,
         log_tag="index_single",
     )
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
     logger.debug(f"[index_single] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
@@ -948,15 +970,17 @@ def index_composite(
         log_tag="index_composite",
     )
 
-    logger.debug(f"[index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
-    img = img.reproject(crs=crs_nat, scale=scale_nat)
+    region_proj = _region_in_crs(region, crs_nat, scale_nat)
+    img = img.clip(region_proj)
 
-    tiles, meta = _tile_rects(crs_nat, region, scale_nat, tile_size)
+    logger.debug(f"[index_composite] grid -> crs={crs_nat}, scale={scale_nat}, tile={tile_size}px")
+    tiles, meta = _tile_rects(crs_nat, region_proj, scale_nat, tile_size)
     if len(tiles) > max_tiles:
         logger.info(f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
         raise HTTPException(status_code=400, detail=f"Too many tiles: {len(tiles)} > max_tiles={max_tiles}")
 
     # Use crs + per-tile dimensions (omit crs_transform to avoid overspecification with dimensions).
+    img = img.reproject(crs=crs_nat, crsTransform=meta["crs_transform"])
     common = {"format": "GEO_TIFF", "crs": crs_nat, "crs_transform": meta["crs_transform"]}
 
     out_tiles = []
