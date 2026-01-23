@@ -269,8 +269,8 @@ def _tile_rects(crs: str, region: ee.Geometry, scale: float, tile_size: int):
             # --- CRITICAL FIX ---
             # Do NOT use rect.intersection(region_proj).
             # It causes "Empty Geometry" errors on edge tiles due to precision.
-            # Passing the full 'rect' is safe; pixels outside the user's ROI 
-            # will simply be transparent/masked in the download.
+            # Passing the full 'rect' is safe; we avoid ROI masking here to
+            # keep edge pixels intact and prevent 0-filled seams on merge.
             
             tiles.append({
                 "r": r, 
@@ -331,6 +331,13 @@ def _safe_download_params(
         params["dimensions"] = f"{new_w}x{new_h}"
 
     return params
+
+def _get_download_url(img: ee.Image, params: dict, tag: str) -> str:
+    try:
+        return img.getDownloadURL(params)
+    except ee.ee_exception.EEException as exc:
+        logger.debug(f"GEE download error [{tag}]: {exc}")
+        raise HTTPException(status_code=401, detail=f"{tag}: {exc}")
 
 def _resolve_crs_scale(
     *,
@@ -465,7 +472,7 @@ def _bands_image_single(
 ) -> ee.Image:
     start, end = _date_and_next(date)
     col = _collection(product, region, start, end, cloud_mask=cloud_mask)
-    img = col.mosaic().clip(region)
+    img = col.mosaic()
 
     bands_list = None
     if bands_csv:
@@ -498,7 +505,6 @@ def _bands_image_composite(
 
     how = _resolve_reducer(reducer)
     img = col.mosaic() if how == "mosaic" else getattr(col, how)()
-    img = img.clip(region)
 
     if apply_scale_offset:
         img = _apply_scale_offset_multi(img, product, bands_list)
@@ -519,7 +525,7 @@ def _rgb_image_single(
     if len(b) != 3:
         raise HTTPException(status_code=400, detail="Provide exactly 3 bands in RGB order, comma-separated.")
     start, end = _date_and_next(date)
-    img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b).clip(region)
+    img = _collection(product, region, start, end, cloud_mask=cloud_mask).mosaic().select(b)
 
     if apply_scale_offset:
         img = _apply_scale_offset_multi(img, product, b)
@@ -545,8 +551,6 @@ def _rgb_image_composite(
         img = col.mosaic()
     else:
         img = getattr(col, how)()
-    img = img.clip(region)
-
     if apply_scale_offset:
         img = _apply_scale_offset_multi(img, product, b)
 
@@ -569,7 +573,7 @@ def _nd_image_single(product: str, b1: str, b2: str, region: ee.Geometry, date: 
     s2, o2 = _band_scale_offset(first, b2, product)
     col_nd = col.map(lambda im: _scaled_nd(ee.Image(im), b1, b2, s1, o1, s2, o2))
     img_nd = col_nd.mosaic()
-    return img_nd.clip(region)
+    return img_nd
 
 def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, start: str, end: str, reducer: str, cloud_mask: bool = False) -> ee.Image:
     col   = _collection(product, region, start, end, cloud_mask=cloud_mask)
@@ -579,7 +583,7 @@ def _nd_image_composite(product: str, b1: str, b2: str, region: ee.Geometry, sta
     col_nd = col.map(lambda im: _scaled_nd(ee.Image(im), b1, b2, s1, o1, s2, o2))
     how = _resolve_reducer(reducer)
     img = col_nd.mosaic() if how == "mosaic" else getattr(col_nd, how)()
-    return img.clip(region)
+    return img
 
 
 # --- Endpoints (return a signed URL for GeoTIFF download) ---
@@ -650,7 +654,7 @@ def bands_single(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "bands_single")
         out_tiles.append(
             {"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url}
         )
@@ -732,7 +736,7 @@ def bands_composite(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "bands_composite")
         out_tiles.append(
             {"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url}
         )
@@ -790,7 +794,7 @@ def rgb_single(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "rgb_single")
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     return {"tiling": meta, "tiles": out_tiles}
@@ -855,7 +859,7 @@ def rgb_composite(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "rgb_composite")
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     logger.info("DONE ALL TILES")
@@ -904,7 +908,7 @@ def index_single(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "index_single")
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     return {"tiling": meta, "tiles": out_tiles}
@@ -959,7 +963,7 @@ def index_composite(
     for t in tiles:
         params = dict(common)
         params["region"] = t["geom"]
-        url = img.getDownloadURL(params)
+        url = _get_download_url(img, params, "index_composite")
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     return {"tiling": meta, "tiles": out_tiles}
