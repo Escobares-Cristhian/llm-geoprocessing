@@ -69,7 +69,7 @@ rm -rf ./.data/postgis
 - `src/llm_geoprocessing/app/llm/*`: LLM clients and agents (mode selector, geoprocessing, interpreter).
 - `src/llm_geoprocessing/app/plugins/gee/gee_geoprocess.py`: FastAPI GEE service and geoprocess endpoints.
 - `src/llm_geoprocessing/app/plugins/gee/geoprocessing_plugin.py`: LLM-visible geoprocess metadata/docs.
-- `src/llm_geoprocessing/app/plugins/gee/runtime_executor.py`: runtime executor and HTTP adaptor to /tif/{geoprocess_name}.
+- `src/llm_geoprocessing/app/plugins/gee/runtime_executor.py`: runtime executor and HTTP adaptor to /tif/{geoprocess_name} and /meta/{geoprocess_name}.
 - `src/llm_geoprocessing/app/plugins/runtime_executor.py`: thin wrapper used by geoprocess_agent; delegates to the GEE executor.
 - `src/llm_geoprocessing/app/db/postgis_uploader.py`: raster upload via raster2pgsql + psql and table naming.
 - `tests/gee_plugins_json_tests/*`: JSON instruction fixtures, test runner, and log output.
@@ -202,7 +202,7 @@ This section describes the **runtime sequence** that happens inside the componen
    - The executor runs each action in order:
      - Product IDs in `input_json.product` are resolved to full product names from `products`.
      - The runtime calls the active geoprocess plugin (HTTP service or module executor).
-       - HTTP plugins use the `GET /tif/:geoprocess_name` style endpoint.
+       - HTTP plugins use the `GET /tif/:geoprocess_name` style endpoint or `GET /meta/:geoprocess_name` for metadata-only calls.
 
 5) **Outputs + postprocessing**
    - The geoprocess produces:
@@ -229,7 +229,7 @@ This section describes the **runtime sequence** that happens inside the componen
 - **JSON validation**: check missing keys (`json/complete/questions`), invalid dates, invalid bbox shape, or schema mismatches.
 - **Executor / plugin calls**:
   - verify `GEE_PLUGIN_URL`
-  - verify endpoint names (`/tif/:geoprocess_name`)
+  - verify endpoint names (`/tif/:geoprocess_name` or `/meta/:geoprocess_name`)
   - verify query params passed to the plugin
 - **Postprocessing + persistence**: verify ChatDB logging and optional PostGIS uploads behave as expected.
 - **Output staging**:
@@ -357,7 +357,7 @@ docker compose -f docker/compose.dev.yaml exec gee ls -l /keys/gee-sa.json
 - Docs: http://localhost:8000/docs
 
 ### Endpoint convention
-- All geoprocesses are exposed as GET endpoints: `/tif/{geoprocess_name}`.
+- All geoprocesses are exposed as GET endpoints: `/tif/{geoprocess_name}` and `/meta/{geoprocess_name}`.
 - The runtime executor calls these endpoints by convention and passes `input_json` as query params.
 
 ### Geoprocess catalog
@@ -698,9 +698,9 @@ bash dev-dashboard.sh
 ## 13) Extending the system (adding a new geoprocess)
 
 ### Step-by-step
-1) Implement a new FastAPI route in `src/llm_geoprocessing/app/plugins/gee/gee_geoprocess.py` under `/tif/{name}`.
+1) Implement a new FastAPI route in `src/llm_geoprocessing/app/plugins/gee/gee_geoprocess.py` under `/tif/{name}` or `/meta/{name}`.
 2) Add its metadata/docs in `src/llm_geoprocessing/app/plugins/gee/geoprocessing_plugin.py` so the LLM can select it.
-3) Ensure `runtime_executor.py` can call it via `/tif/{name}` (names must match).
+3) Ensure `runtime_executor.py` can call it via `/tif/{name}` or `/meta/{name}` (names must match).
 4) Add a JSON instruction fixture in `tests/gee_plugins_json_tests/`.
 5) Run the JSON test suite.
 
@@ -791,7 +791,7 @@ xhost +local:
 
 ### Replace with another plugin (single-plugin scenario)
 1) Implement the plugin itself:
-   - HTTP service option: expose `GET /tif/{geoprocess_name}` endpoints.
+   - HTTP service option: expose `GET /tif/{geoprocess_name}` or `GET /meta/{geoprocess_name}` endpoints.
    - Python module option: provide `execute_geoprocess(name, params) -> dict`.
 2) Update LLM-visible metadata and docs:
    - Point `src/llm_geoprocessing/app/plugins/preprocessing_plugin.py` and `src/llm_geoprocessing/app/plugins/geoprocessing_plugin.py` to your plugin metadata/docs.

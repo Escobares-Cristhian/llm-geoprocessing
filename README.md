@@ -27,6 +27,8 @@ The Docker Compose stack includes three services: geollm (chat app), gee (GEE se
     - RGB composites over a date range
     - Normalized difference index for a single date
     - Normalized difference index composites over a date range
+    - Latest available image date for a product (optional bbox filter)
+    - Check whether a product has imagery within a date range
   - Each one have the option to:
     - Use defaults resolution (meters/degree/number) and projection (CRS) or reproject to a target CRS and resolution.
     - Apply cloud masking (when supported by the product)

@@ -43,7 +43,10 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg_from_geoprocess: Optional[str], 
         interpreter_prompt += _plugin_instructions()
         
         # DEBUG: Add assume instructions were generated and invent the output response
-        interpreter_prompt += "Assume the above instructions were processed and generated correctly, invent the output to give a dummy (but plausible) response to the user message.\n"
+        # interpreter_prompt += "Assume the above instructions were processed and generated correctly, invent the output to give a dummy (but plausible) response to the user message.\n"
+        
+        # Final instruction summary
+        interpreter_prompt += "From the above instinstructions, check if logs show errors, otherwise assume geoprocessing was successful and return a concise summary of the particular geoprocessing performed and its results, and the real name of the final file created."
     
     # -----------------------------------------------------------------
     # ----- TODO: MISSING WAY TO GET INFORMATION FROM THE GEODATA -----

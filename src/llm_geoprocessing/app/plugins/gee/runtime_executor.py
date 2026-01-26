@@ -38,8 +38,18 @@ def _try_module_executor(name: str, params: Dict[str, Any]) -> Dict[str, Any] | 
     return None
 
 # --- Strategy 2: GEE HTTP microservice by naming convention ---
-# Deprecated: usefull for debugging only, now the endpoints have the same name as geoprocesses.
+# Deprecated: useful for debugging only, now the endpoints have the same name as geoprocesses.
+_META_ENDPOINTS = {"last_date", "date_range_exists"}
+
 def _gee_endpoint_from_name(name: str) -> str | None:
+    if not name:
+        return None
+    if name.startswith("/"):
+        return name
+    if name.startswith("meta/") or name.startswith("tif/"):
+        return f"/{name}"
+    if name in _META_ENDPOINTS:
+        return f"/meta/{name}"
     return f"/tif/{name}"
 
 
@@ -95,11 +105,16 @@ def _gee_http_execute(name: str, params: Dict[str, Any]) -> Dict[str, Any] | Non
     path = _gee_endpoint_from_name(name)
     if not path:
         return None
+    is_meta = path.startswith("/meta/")
     # Normalize certain params for robust encoding
     q = _normalize_params_for_gee(params)
     r = requests.get(base_url + path, params=q, timeout=180)
     _raise_for_status_with_detail(r)
+    if is_meta and (r.status_code == 204 or not r.content):
+        return {"status_code": r.status_code}
     data = r.json()
+    if is_meta:
+        return {"metadata": data}
     # Support tiled responses
     if isinstance(data, dict) and "tiles" in data:
         urls = [t.get("url") for t in data.get("tiles", []) if t.get("url")]

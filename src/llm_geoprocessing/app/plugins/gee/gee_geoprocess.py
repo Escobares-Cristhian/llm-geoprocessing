@@ -1,5 +1,5 @@
 import math
-from fastapi import FastAPI, HTTPException, Query
+from fastapi import FastAPI, HTTPException, Query, Response
 import os, ee, json
 from datetime import datetime, timedelta
 
@@ -73,6 +73,19 @@ def _date_and_next(day: str) -> tuple[str, str]:
     except Exception:
         raise HTTPException(status_code=400, detail="Invalid date. Use 'YYYY-MM-DD'.")
     return (d.isoformat(), (d + timedelta(days=1)).isoformat())
+
+def _date_range_inclusive(start: str, end: str) -> tuple[str, str]:
+    """
+    Given 'YYYY-MM-DD' start/end, return (start ISO, end+1day ISO).
+    """
+    try:
+        s = datetime.strptime(start, "%Y-%m-%d").date()
+        e = datetime.strptime(end, "%Y-%m-%d").date()
+    except Exception:
+        raise HTTPException(status_code=400, detail="Invalid date. Use 'YYYY-MM-DD'.")
+    if e < s:
+        raise HTTPException(status_code=400, detail="Invalid date range. 'end' must be >= 'start'.")
+    return (s.isoformat(), (e + timedelta(days=1)).isoformat())
 
 def _guess_default_scale(product: str) -> float:
     p = (product or "").upper()
@@ -398,6 +411,36 @@ def _collection(product: str, region: ee.Geometry, start: str, end: str, cloud_m
     if cloud_mask:
         col = col.map(lambda i: _apply_cloud_mask_by_product(ee.Image(i), product))
     return col
+
+def _collection_has_any(product: str, start: str, end: str) -> bool:
+    col = ee.ImageCollection(product).filterDate(start, end)
+    try:
+        count = int(col.size().getInfo())
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not access collection '{product}': {exc}")
+    return count > 0
+
+def _latest_image_info(product: str, region: ee.Geometry | None) -> dict:
+    col = ee.ImageCollection(product)
+    if region is not None:
+        col = col.filterBounds(region)
+    try:
+        count = int(col.size().getInfo())
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not access collection '{product}': {exc}")
+    if count < 1:
+        raise HTTPException(status_code=404, detail="No images found for the given product (and bbox, if provided).")
+    img = ee.Image(col.sort("system:time_start", False).first())
+    try:
+        date = ee.Date(img.get("system:time_start")).format("YYYY-MM-dd").getInfo()
+    except Exception as exc:
+        raise HTTPException(status_code=400, detail=f"Could not read latest image date: {exc}")
+    image_id = ""
+    try:
+        image_id = img.id().getInfo()
+    except Exception:
+        image_id = ""
+    return {"date": date, "image_id": image_id}
 
 # --- scale+offset helpers ---
 def _band_scale_offset(img: ee.Image, band: str, product: str) -> tuple[float, float]:
@@ -991,3 +1034,38 @@ def index_composite(
         out_tiles.append({"row": t["r"], "col": t["c"], "bbox_crs": t["bbox_crs"], "url": url})
 
     return {"tiling": meta, "tiles": out_tiles}
+
+@app.get("/meta/last_date")
+def last_date(
+    product: str = Query(..., description="GEE collection id"),
+    bbox: str | None = Query(
+        None,
+        description="Optional xmin,ymin,xmax,ymax (lon/lat) to filter by region",
+    ),
+):
+    _init_ee()
+    bbox_arg = (bbox or "").strip()
+    region = None
+    if bbox_arg and bbox_arg.lower() not in ("none", "null"):
+        region = _parse_bbox(bbox_arg)
+    info = _latest_image_info(product, region)
+    out = {"product": product, "date": info["date"]}
+    if info.get("image_id"):
+        out["image_id"] = info["image_id"]
+    return out
+
+@app.get("/meta/date_range_exists")
+def date_range_exists(
+    product: str = Query(..., description="GEE collection id"),
+    start: str = Query(..., description="YYYY-MM-DD inclusive"),
+    end: str = Query(..., description="YYYY-MM-DD inclusive"),
+):
+    _init_ee()
+    start_iso, end_iso = _date_range_inclusive(start, end)
+    has_any = _collection_has_any(product, start_iso, end_iso)
+    if not has_any:
+        raise HTTPException(
+            status_code=402,
+            detail="The selected product does not have an image for the selected date range.\n",
+        )
+    return Response(status_code=204)
