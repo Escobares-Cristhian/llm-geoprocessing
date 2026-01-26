@@ -46,7 +46,7 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg_from_geoprocess: Optional[str], 
         # interpreter_prompt += "Assume the above instructions were processed and generated correctly, invent the output to give a dummy (but plausible) response to the user message.\n"
         
         # Final instruction summary
-        interpreter_prompt += "From the above instinstructions, check if logs show errors, otherwise assume geoprocessing was successful and return a concise summary of the particular geoprocessing performed and its results, and the real name of the final file created."
+        interpreter_prompt += "From the above instinstructions, check if logs show errors, otherwise geoprocess is successful if you can see the output file created. Return a concise summary of the particular geoprocessing performed and its results, and the real name of the final file created."
     
     # -----------------------------------------------------------------
     # ----- TODO: MISSING WAY TO GET INFORMATION FROM THE GEODATA -----
@@ -56,6 +56,7 @@ def main(chatbot: Chatbot, chat_io: ChatIO, msg_from_geoprocess: Optional[str], 
     interpreter_prompt += (
         "\nBased on the above information, please provide a suitable response to the user's message.\n"
         " Be concise and relevant. Do not mention the JSON Instructions or Geoprocessing Mode.\n"
+        " At this point, the geoprocessing has already executed and ended.\n"
         " If the geoprocessing return a error, then explain to the user what happened with the technical details, and later suggest possible solutions or alternatives.\n"
         " Do not be so verbose unless specifically asked by the user. Make short and to-the-point answers.\n"
         " Respond in the same language as the user's message."
